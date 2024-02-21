@@ -1,0 +1,4 @@
+CORPUS*
+
+!*.c
+fuzz_*
