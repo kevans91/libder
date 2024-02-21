@@ -6,12 +6,20 @@
 
 #pragma once
 
+#include <sys/param.h>
+
 #include <stdbool.h>
 
 #include "libder.h"
 
 #ifndef nitems
 #define	nitems(x)	(sizeof((x)) / sizeof((x)[0]))
+#endif
+#ifndef MIN
+#define	MIN(a,b) (((a)<(b))?(a):(b))
+#endif
+#ifndef MAX
+#define	MAX(a,b) (((a)>(b))?(a):(b))
 #endif
 
 struct libder_ctx;
@@ -37,4 +45,4 @@ void	 libder_set_error(struct libder_ctx *, int, const char *, int);
 #define	libder_set_error(ctx, error)	\
 	libder_set_error((ctx), (error), __FILE__, __LINE__)
 
-struct libder_object	*libder_obj_alloc_internal(int, size_t, const uint8_t *);
+struct libder_object	*libder_obj_alloc_internal(int, size_t, uint8_t *);

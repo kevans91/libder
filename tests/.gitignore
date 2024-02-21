@@ -1,4 +1,6 @@
 CORPUS*
+crash-*
+oom-*
 
 !*.c
 fuzz_*

@@ -18,9 +18,10 @@
 
 struct libder_object *
 libder_obj_alloc(struct libder_ctx *ctx, int type, size_t length,
-    const uint8_t *payload)
+    const uint8_t *payload_in)
 {
 	struct libder_object *obj;
+	uint8_t *payload;
 
 	if ((length == 0 && payload != NULL) ||
 	    (length != 0 && payload == NULL)) {
@@ -28,19 +29,33 @@ libder_obj_alloc(struct libder_ctx *ctx, int type, size_t length,
 		return (NULL);
 	}
 
+	if (length > 0) {
+		payload = malloc(length);
+		if (payload == NULL) {
+			libder_set_error(ctx, LDE_NOMEM);
+			return (NULL);
+		}
+
+		memcpy(payload, payload_in, length);
+	} else {
+		payload = NULL;
+	}
+
 	obj = libder_obj_alloc_internal(type, length, payload);
-	if (obj == NULL)
+	if (obj == NULL) {
+		free(payload);
 		libder_set_error(ctx, LDE_NOMEM);
+	}
 
 	return (obj);
 }
 
 /*
- * XXX Expose a different public interface that sets EINVAL for bad
- * length/payload input.
+ * Returns an obj on success, NULL if out of memory.  `obj` takes ownership of
+ * the payload on success.
  */
 LIBDER_PRIVATE struct libder_object *
-libder_obj_alloc_internal(int type, size_t length, const uint8_t *payload)
+libder_obj_alloc_internal(int type, size_t length, uint8_t *payload)
 {
 	struct libder_object *obj;
 
@@ -55,18 +70,8 @@ libder_obj_alloc_internal(int type, size_t length, const uint8_t *payload)
 
 	obj->type = type;
 	obj->length = length;
-	obj->payload = NULL;
+	obj->payload = payload;
 	obj->children = obj->next = NULL;
-
-	if (length > 0) {
-		obj->payload = malloc(length);
-		if (obj->payload == NULL) {
-			free(obj);
-			return (NULL);
-		}
-
-		memcpy(obj->payload, payload, length);
-	}
 
 	return (obj);
 }
