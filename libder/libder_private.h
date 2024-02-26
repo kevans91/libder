@@ -28,6 +28,7 @@ struct libder_object;
 struct libder_ctx {
 	enum libder_error	 error;
 	int			 verbose;
+	size_t			 buffer_size;
 };
 
 struct libder_object {
@@ -40,6 +41,7 @@ struct libder_object {
 
 #define	LIBDER_PRIVATE	__attribute__((__visibility__("hidden")))
 
+size_t	 libder_get_buffer_size(struct libder_ctx *);
 void	 libder_set_error(struct libder_ctx *, int, const char *, int);
 
 #define	libder_set_error(ctx, error)	\

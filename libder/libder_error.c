@@ -25,6 +25,8 @@ static const struct libder_error_desc {
 	DESCRIBE(LONGLEN,	"Encoded length too large (8 byte max)"),
 	DESCRIBE(SHORTDATA,	"Payload not available (too short)"),
 	DESCRIBE(GARBAGE,	"Garbage after encoded data"),
+	DESCRIBE(UNEXPECTED,	"Unexpected payload"),
+	DESCRIBE(STREAMERR,	"Stream error"),
 };
 
 const char *
@@ -40,6 +42,13 @@ libder_get_error(struct libder_ctx *ctx)
 	}
 
 	return (libder_error_nodesc);
+}
+
+bool
+libder_has_error(struct libder_ctx *ctx)
+{
+
+	return (ctx->error != 0);
 }
 
 LIBDER_PRIVATE void

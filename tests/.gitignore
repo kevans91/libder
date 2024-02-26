@@ -1,6 +1,9 @@
 CORPUS*
 crash-*
+leak-*
 oom-*
+*.log
 
-!*.c
 fuzz_*
+!*.c
+make_corpus

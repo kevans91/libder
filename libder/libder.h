@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <stdbool.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -55,6 +57,7 @@ enum libder_error {
 	LDE_SHORTDATA,		/* Payload not available */
 	LDE_GARBAGE,		/* Garbage after encoded data */
 	LDE_UNEXPECTED,		/* Unexpected payload */
+	LDE_STREAMERR,		/* Stream error */
 };
 
 typedef struct libder_ctx	*libder_ctx;
@@ -62,7 +65,10 @@ typedef struct libder_object	*libder_object;
 
 libder_ctx		 libder_open(void);
 const char		*libder_get_error(libder_ctx);
+bool			 libder_has_error(libder_ctx);
 libder_object		 libder_read(libder_ctx, const uint8_t *, size_t *);
+libder_object		 libder_read_fd(libder_ctx, int, size_t *);
+libder_object		 libder_read_file(libder_ctx, FILE *, size_t *);
 void			 libder_close(libder_ctx);
 
 #define	DER_CHILDREN(obj)	libder_obj_children(obj)

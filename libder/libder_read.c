@@ -7,13 +7,19 @@
 #include <sys/types.h>
 
 #include <assert.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <poll.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "libder_private.h"
 
 enum libder_stream_type {
 	LDST_NONE,
+	LDST_FD,
+	LDST_FILE,
 };
 
 struct libder_payload {
@@ -24,7 +30,7 @@ struct libder_payload {
 
 struct libder_stream {
 	enum libder_stream_type	 stream_type;
-	bool			 stream_eof;
+	struct libder_ctx	*stream_ctx;
 	uint8_t			*stream_buf;
 	size_t			 stream_bufsz;
 
@@ -33,10 +39,14 @@ struct libder_stream {
 	size_t			 stream_consumed;
 	size_t			 stream_last_commit;
 
-	/* src */
 	union {
 		const uint8_t	*stream_src_buf;
+		FILE		*stream_src_file;
+		int		 stream_src_fd;
 	};
+
+	int			 stream_error;
+	bool			 stream_eof;
 };
 
 static uint8_t *
@@ -79,6 +89,45 @@ payload_free(struct libder_payload *payload)
 	payload->payload_size = 0;
 }
 
+static bool
+libder_stream_init(struct libder_ctx *ctx, struct libder_stream *stream)
+{
+	size_t buffer_size;
+
+	stream->stream_ctx = ctx;
+	stream->stream_error = 0;
+	stream->stream_eof = false;
+	stream->stream_offset = 0;
+	stream->stream_consumed = 0;
+	stream->stream_last_commit = 0;
+	if (stream->stream_type == LDST_NONE) {
+		assert(stream->stream_src_buf != NULL);
+		assert(stream->stream_bufsz != 0);
+		assert(stream->stream_resid != 0);
+
+		return (true);
+	}
+
+	buffer_size = libder_get_buffer_size(ctx);
+	assert(buffer_size != 0);
+
+	stream->stream_buf = malloc(buffer_size);
+	if (stream->stream_buf == NULL) {
+		libder_set_error(ctx, LDE_NOMEM);
+	} else {
+		stream->stream_bufsz = buffer_size;
+		stream->stream_resid = 0;	/* Nothing read yet */
+	}
+
+	return (stream->stream_buf != NULL);
+}
+
+static void
+libder_stream_free(struct libder_stream *stream)
+{
+	free(stream->stream_buf);
+}
+
 static void
 libder_stream_commit(struct libder_stream *stream)
 {
@@ -108,11 +157,43 @@ libder_stream_eof(const struct libder_stream *stream)
 	return (stream->stream_eof && stream->stream_resid == 0);
 }
 
+static void
+libder_stream_repack(struct libder_stream *stream)
+{
+
+	/*
+	 * Nothing to do, data's already at the beginning.
+	 */
+	if (stream->stream_offset == 0)
+		return;
+
+	/*
+	 * If there's data in-flight, we'll repack it back to the beginning so
+	 * that we can store more with fewer calls to refill.  If there's no
+	 * data in-flight, we naturally just reset the offset.
+	 */
+	if (stream->stream_resid != 0) {
+		uint8_t *dst = &stream->stream_buf[0];
+		uint8_t *src = &stream->stream_buf[stream->stream_offset];
+
+		memmove(dst, src, stream->stream_resid);
+	}
+
+	stream->stream_last_commit -= stream->stream_offset;
+	stream->stream_offset = 0;
+}
+
 static const uint8_t *
 libder_stream_refill(struct libder_stream *stream, size_t req)
 {
 	size_t offset = stream->stream_offset;
 	const uint8_t *src;
+#ifndef NDEBUG
+	const uint8_t *bufend;
+#endif
+	uint8_t *refill_buf;
+	size_t bufleft, freadsz, needed, totalsz;
+	ssize_t readsz;
 
 	/*
 	 * For non-streaming, we just fulfill requests straight out of
@@ -129,22 +210,102 @@ libder_stream_refill(struct libder_stream *stream, size_t req)
 		return (&src[offset]);
 	}
 
+	/* Cannot refill the non-streaming type. */
 	if (stream->stream_type == LDST_NONE) {
 		stream->stream_eof = true;
 		return (NULL);
 	}
 
+	bufleft = stream->stream_bufsz - (stream->stream_offset + stream->stream_resid);
+
 	/*
-	 * No streaming types currently implemented, but this is where we would
-	 * actually refill.  These parts are all effectively dead code.
+	 * If we can't fit all of our data in the remainder of the buffer, we'll
+	 * try to repack it to just fit as much as we can in.
 	 */
+	if (req > bufleft && stream->stream_offset != 0) {
+		libder_stream_repack(stream);
+
+		bufleft = stream->stream_bufsz - stream->stream_resid;
+		offset = stream->stream_offset;
+	}
+
+	refill_buf = &stream->stream_buf[offset + stream->stream_resid];
+	needed = req - stream->stream_resid;
+
+	assert(needed <= bufleft);
+
+#ifndef NDEBUG
+	bufend = &stream->stream_buf[stream->stream_bufsz];
+#endif
+	totalsz = 0;
+
+	switch (stream->stream_type) {
+	case LDST_FILE:
+		assert(stream->stream_src_file != NULL);
+
+		while (needed != 0) {
+			assert(refill_buf + needed <= bufend);
+
+			freadsz = fread(refill_buf, 1, needed, stream->stream_src_file);
+			if (freadsz == 0) {
+				/*
+				 * Error always put us into EOF state.
+				 */
+				stream->stream_eof = true;
+				if (ferror(stream->stream_src_file))
+					stream->stream_error = 1;
+				break;
+			}
+
+			stream->stream_resid += freadsz;
+			refill_buf += freadsz;
+			needed -= freadsz;
+			totalsz += freadsz;
+		}
+		break;
+	case LDST_FD:
+		assert(stream->stream_src_fd >= 0);
+
+		while (needed != 0) {
+			assert(refill_buf + needed <= bufend);
+
+			readsz = read(stream->stream_src_fd, refill_buf, needed);
+			if (readsz <= 0) {
+				stream->stream_eof = true;
+				if (readsz < 0)
+					stream->stream_error = errno;
+				break;
+			}
+
+			stream->stream_resid += readsz;
+			refill_buf += readsz;
+			needed -= readsz;
+			totalsz += readsz;
+		}
+
+		break;
+	case LDST_NONE:
+		assert(0 && "Unrecognized stream type");
+		break;
+	}
 
 	/*
 	 * For streaming types, we commit as soon as we refill the buffer because
 	 * we can't just rewind.
 	 */
-	stream->stream_eof = true;	/* XXX Not really */
-	return (NULL);
+	stream->stream_consumed += totalsz;
+	stream->stream_last_commit += totalsz;
+
+	if (needed != 0) {
+		if (stream->stream_error != 0)
+			libder_set_error(stream->stream_ctx, LDE_STREAMERR);
+		return (NULL);
+	} else {
+		stream->stream_offset += req;
+		stream->stream_resid -= req;
+	}
+
+	return (&stream->stream_buf[offset]);
 }
 
 static int
@@ -391,9 +552,64 @@ libder_read(struct libder_ctx *ctx, const uint8_t *data, size_t *datasz)
 	};
 	struct libder_object *root;
 
+	ctx->error = LDE_NONE;
+	if (!libder_stream_init(ctx, &stream))
+		return (NULL);
 	root = libder_read_stream(ctx, &stream);
 	if (stream.stream_consumed != 0)
 		*datasz = stream.stream_consumed;
 
+	return (root);
+}
+
+/*
+ * Ditto above, but with an fd.  *consumed is not ignored on entry, and returned
+ * with the number of bytes read from fd if consumed is not NULL.  libder(3)
+ * tries to not over-read if an invalid structure is detected.
+ */
+struct libder_object *
+libder_read_fd(struct libder_ctx *ctx, int fd, size_t *consumed)
+{
+	struct libder_stream stream = {
+		.stream_type = LDST_FD,
+		.stream_src_fd = fd,
+	};
+	struct libder_object *root;
+
+	root = NULL;
+	ctx->error = LDE_NONE;
+	if (!libder_stream_init(ctx, &stream))
+		return (NULL);
+
+	root = libder_read_stream(ctx, &stream);
+	if (consumed != NULL && stream.stream_consumed != 0)
+		*consumed = stream.stream_consumed;
+
+	libder_stream_free(&stream);
+	return (root);
+}
+
+/*
+ * Ditto above, but with a FILE instead of an fd.
+ */
+struct libder_object *
+libder_read_file(struct libder_ctx *ctx, FILE *fp, size_t *consumed)
+{
+	struct libder_stream stream = {
+		.stream_type = LDST_FILE,
+		.stream_src_file = fp,
+	};
+	struct libder_object *root;
+
+	root = NULL;
+	ctx->error = LDE_NONE;
+	if (!libder_stream_init(ctx, &stream))
+		return (NULL);
+
+	root = libder_read_stream(ctx, &stream);
+	if (consumed != NULL && stream.stream_consumed != 0)
+		*consumed = stream.stream_consumed;
+
+	libder_stream_free(&stream);
 	return (root);
 }
