@@ -57,6 +57,12 @@ enum libder_ber_type {
 #define	BER_TYPE_CONSTRUCTED_MASK	0x20	/* Bit 6 */
 #define	BER_TYPE_CLASS_MASK		0xc0	/* Bits 7 and 8 */
 
+/*
+ * The difference between the type and the full type is just that the full type
+ * will indicate the class of type, so it may be more useful for some operations.
+ */
+#define	BER_FULL_TYPE(tval)		\
+    ((tval) & ~(BER_TYPE_CONSTRUCTED_MASK))
 #define	BER_TYPE(tval)			\
     ((tval) & ~(BER_TYPE_CLASS_MASK | BER_TYPE_CONSTRUCTED_MASK))
 #define	BER_TYPE_CLASS(tval)		\
@@ -76,14 +82,28 @@ enum libder_error {
 	LDE_UNEXPECTED,		/* Unexpected payload */
 	LDE_STREAMERR,		/* Stream error */
 	LDE_TRUNCVARLEN,	/* Variable length object truncated */
+	LDE_COALESCE_BADCHILD,	/* Bad child encountered when coalescing */
 };
 
 typedef struct libder_ctx	*libder_ctx;
 typedef struct libder_object	*libder_object;
 
+/*
+ * By default we normalize everything, but we allow some subset of the
+ * functionality to be disabled.  Lengths are non-optional and will always be
+ * normalized to a fixed short or long length.
+ */
+/* Normalize constructed types that should be coalesced (e.g., strings, time). */
+#define	LIBDER_NORMALIZE_CONSTRUCTED	0x0001
+
+/* All valid bits. */
+#define	LIBDER_NORMALIZE_ALL		0x0001
+
 libder_ctx		 libder_open(void);
 const char		*libder_get_error(libder_ctx);
 bool			 libder_has_error(libder_ctx);
+uint32_t		 libder_get_normalize(libder_ctx);
+uint32_t		 libder_set_normalize(libder_ctx, uint32_t);
 libder_object		 libder_read(libder_ctx, const uint8_t *, size_t *);
 libder_object		 libder_read_fd(libder_ctx, int, size_t *);
 libder_object		 libder_read_file(libder_ctx, FILE *, size_t *);
@@ -112,7 +132,7 @@ void		 libder_obj_free(libder_object);
 libder_object	 libder_obj_child(const struct libder_object *, size_t);
 libder_object	 libder_obj_children(const struct libder_object *);
 libder_object	 libder_obj_next(const struct libder_object *);
-int		libder_obj_type(const struct libder_object *);
+int		 libder_obj_type(const struct libder_object *);
 
 /* Debugging aide -- probably shouldn't use. */
 void		 libder_obj_dump(const struct libder_object *, FILE *);

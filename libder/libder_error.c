@@ -28,6 +28,7 @@ static const struct libder_error_desc {
 	DESCRIBE(UNEXPECTED,	"Unexpected payload"),
 	DESCRIBE(STREAMERR,	"Stream error"),
 	DESCRIBE(TRUNCVARLEN,	"Variable length object truncated"),
+	DESCRIBE(COALESCE_BADCHILD,	"Bad child encountered when coalescing"),
 };
 
 const char *

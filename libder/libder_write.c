@@ -69,6 +69,9 @@ libder_write_object_payload(struct libder_ctx *ctx, struct libder_object *obj,
 {
 
 	/* XXX Normalization */
+	/* We don't expect `obj->payload` to be valid for a zero-size value. */
+	if (obj->length == 0)
+		return (true);
 	return (write_buffer(cookie, obj->payload, obj->length));
 }
 
@@ -77,6 +80,9 @@ libder_write_object(struct libder_ctx *ctx, struct libder_object *obj,
     write_buffer_t *write_buffer, void *cookie)
 {
 
+	if (DER_NORMALIZING(ctx, CONSTRUCTED) && !libder_obj_coalesce_children(obj, ctx))
+		return (false);
+
 	/* Write out this object's header first */
 	if (!libder_write_object_header(ctx, obj, write_buffer, cookie))
 		return (false);
@@ -84,6 +90,8 @@ libder_write_object(struct libder_ctx *ctx, struct libder_object *obj,
 	/* Write out the payload. */
 	if (obj->children == NULL)
 		return (libder_write_object_payload(ctx, obj, write_buffer, cookie));
+
+	assert(BER_TYPE_CONSTRUCTED(obj->type));
 
 	/* XXX Do we need to sort? */
 

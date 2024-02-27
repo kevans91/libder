@@ -36,7 +36,6 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t sz)
 	if (obj == NULL || readsz != sz)
 		goto out;
 
-	ret = 0;
 	if (obj != NULL) {
 		uint8_t *buf = NULL;
 		size_t bufsz = 0;
@@ -50,7 +49,9 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t sz)
 		 * we'll just assert on it.
 		 */
 		buf = libder_write(ctx, obj, buf, &bufsz);
-		assert(buf != NULL);
+		if (buf == NULL)
+			goto out;
+
 		assert(bufsz != 0);
 
 		/*
@@ -65,6 +66,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t sz)
 		free(buf);
 	}
 
+	ret = 0;
 
 out:
 	libder_obj_free(obj);

@@ -231,3 +231,114 @@ libder_obj_dump(const struct libder_object *root, FILE *fp)
 
 	libder_obj_dump_internal(root, fp, 0);
 }
+
+LIBDER_PRIVATE bool
+libder_obj_may_coalesce_children(const struct libder_object *obj)
+{
+
+	/* No clue about non-universal types. */
+	if (BER_TYPE_CLASS(obj->type) != BC_UNIVERSAL)
+		return (false);
+
+	/* Constructed types don't have children. */
+	if (!BER_TYPE_CONSTRUCTED(obj->type))
+		return (false);
+
+	/* Strip the constructed bit off. */
+	switch (BER_TYPE(obj->type)) {
+	case BT_UTF8STRING:	/* String types */
+	case BT_NUMERICSTRING:
+	case BT_STRING:
+	case BT_TELEXSTRING:
+	case BT_VIDEOTEXSTRING:
+	case BT_IA5STRING:
+	case BT_GFXSTRING:
+	case BT_VISSTRING:
+	case BT_GENSTRING:
+	case BT_UNIVSTRING:
+	case BT_CHARSTRING:
+	case BT_BMPSTRING:
+		return (true);
+	case BT_UTCTIME:	/* Time types */
+	case BT_GENTIME:
+		return (true);
+	default:
+		return (false);
+	}
+}
+
+LIBDER_PRIVATE bool
+libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
+{
+	struct libder_object *child, *tmp;
+	size_t new_size = 0, offset = 0;
+	uint8_t *coalesced_data;
+	int new_type;
+
+	if (!libder_obj_may_coalesce_children(obj))
+		return (true);
+
+	assert(BER_TYPE_CLASS(obj->type) == BC_UNIVERSAL);
+	assert(BER_TYPE_CONSTRUCTED(obj->type));
+	new_type = BER_TYPE(obj->type);
+	for (child = obj->children; child != NULL; child = child->next) {
+		/* Sanity check and coalesce our children. */
+		if (BER_FULL_TYPE(child->type) != new_type) {
+			libder_set_error(ctx, LDE_COALESCE_BADCHILD);
+			return (false);
+		}
+
+		/* Recursively coalesce everything. */
+		if (!libder_obj_coalesce_children(child, ctx))
+			return (false);
+
+		/*
+		 * The child node will be disappearing anyways, so we stash the
+		 * disk size sans header in its disk_size to reuse in the later
+		 * loop.
+		 */
+		child->disk_size = libder_obj_disk_size(child, false);
+		new_size += child->disk_size;
+	}
+
+	if (new_size != 0) {
+		coalesced_data = malloc(new_size);
+		if (coalesced_data == NULL) {
+			libder_set_error(ctx, LDE_NOMEM);
+			return (false);
+		}
+	} else {
+		/*
+		 * This would perhaps be a bit weird, but that's normalization
+		 * for you.  We shouldn't really have a UTF-8 string that's
+		 * composed of a series of zero-length UTF-8 strings, but
+		 * weirder things have happened.
+		 */
+		coalesced_data = NULL;
+	}
+
+	/* Avoid leaking any children as we coalesce. */
+	for (child = obj->children; child != NULL && (tmp = child->next, 1);
+	    child = tmp) {
+		if (child->disk_size != 0) {
+			assert(coalesced_data != NULL);
+			assert(offset + child->disk_size <= new_size);
+
+			memcpy(&coalesced_data[offset], child->payload, child->disk_size);
+			offset += child->disk_size;
+		}
+
+		libder_obj_free(child);
+	}
+
+	/* Zap the children, we've absorbed their bodies. */
+	obj->children = NULL;
+
+	/* Finally, swap out the payload. */
+	free(obj->payload);
+	obj->length = new_size;
+	obj->payload = coalesced_data;
+	obj->type = new_type;
+
+	return (true);
+}

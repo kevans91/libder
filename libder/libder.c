@@ -25,6 +25,7 @@ libder_open(void)
 	ctx->error = LDE_NONE;
 	ctx->buffer_size = 0;
 	ctx->verbose = 0;
+	ctx->normalize = LIBDER_NORMALIZE_ALL;
 
 	return (ctx);
 }
@@ -44,6 +45,25 @@ libder_get_buffer_size(struct libder_ctx *ctx)
 	}
 
 	return (ctx->buffer_size);
+}
+
+uint32_t
+libder_get_normalize(struct libder_ctx *ctx)
+{
+
+	return (ctx->normalize);
+}
+
+/*
+ * Set the normalization flags; returns the previous value.
+ */
+uint32_t
+libder_set_normalize(struct libder_ctx *ctx, uint32_t nmask)
+{
+	uint32_t old = ctx->normalize;
+
+	ctx->normalize = (nmask & LIBDER_NORMALIZE_ALL);
+	return (old);
 }
 
 void

@@ -26,21 +26,25 @@ struct libder_ctx;
 struct libder_object;
 
 struct libder_ctx {
-	enum libder_error	 error;
-	int			 verbose;
 	size_t			 buffer_size;
+	enum libder_error	 error;
+	uint32_t		 normalize;
+	int			 verbose;
 };
 
 struct libder_object {
-	int			 type;
 	size_t			 length;
 	size_t			 disk_size;
 	uint8_t			*payload;	/* NULL for sequences */
 	struct libder_object	*children;
 	struct libder_object	*next;
+	int			 type;
 };
 
 #define	LIBDER_PRIVATE	__attribute__((__visibility__("hidden")))
+
+#define	DER_NORMALIZING(ctx, bit)	\
+    (((ctx)->normalize & (LIBDER_NORMALIZE_ ## bit)) != 0)
 
 size_t	 libder_get_buffer_size(struct libder_ctx *);
 void	 libder_set_error(struct libder_ctx *, int, const char *, int);
@@ -51,3 +55,5 @@ void	 libder_set_error(struct libder_ctx *, int, const char *, int);
 struct libder_object	*libder_obj_alloc_internal(int, size_t, uint8_t *);
 size_t			 libder_size_length(size_t);
 size_t			 libder_obj_disk_size(struct libder_object *, bool);
+bool			 libder_obj_may_coalesce_children(const struct libder_object *);
+bool			 libder_obj_coalesce_children(struct libder_object *, struct libder_ctx *);
