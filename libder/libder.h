@@ -11,6 +11,13 @@
 #include <stdint.h>
 #include <stddef.h>
 
+enum libder_ber_type_class {
+	BC_UNIVERSAL = 0,
+	BC_APPLICATION = 1,
+	BC_CONTEXT = 2,
+	BC_PRIVATE = 3,
+};
+
 enum libder_ber_type {
 	BT_RESERVED = 0x00,
 	BT_BOOLEAN = 0x01,
@@ -46,6 +53,16 @@ enum libder_ber_type {
 	BT_SEQUENCE = 0x30,
 	BT_SET = 0x31,
 };
+
+#define	BER_TYPE_CONSTRUCTED_MASK	0x20	/* Bit 6 */
+#define	BER_TYPE_CLASS_MASK		0xc0	/* Bits 7 and 8 */
+
+#define	BER_TYPE(tval)			\
+    ((tval) & ~(BER_TYPE_CLASS_MASK | BER_TYPE_CONSTRUCTED_MASK))
+#define	BER_TYPE_CLASS(tval)		\
+    (((tval) & BER_TYPE_CLASS_MASK) >> 6)
+#define BER_TYPE_CONSTRUCTED(tval)	\
+    (((tval) & BER_TYPE_CONSTRUCTED_MASK) != 0)
 
 enum libder_error {
 	LDE_NONE = 0x00,

@@ -444,9 +444,18 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 		goto out;
 	}
 
-	if (type != BT_SEQUENCE && type != BT_SET && !varlen) {
+	if (!BER_TYPE_CONSTRUCTED(type)) {
 		uint8_t *payload_data;
 		size_t payloadsz;
+
+		/*
+		 * Primitive types cannot use the indefinite form, they must
+		 * have an encoded size.
+		 */
+		if (varlen) {
+			libder_set_error(ctx, LDE_UNEXPECTED);
+			goto out;
+		}
 
 		/*
 		 * Copy the payload out now if it's not heap-allocated.
