@@ -94,7 +94,7 @@ libder_size_length(size_t sz)
 	 * takes a size_t, otherwise this would be a bit wrong.
 	 */
 	for (nbytes = 1; nbytes < sizeof(size_t); nbytes++) {
-		if ((sz & ~((1UL << nbytes) - 1)) == 0)
+		if ((sz & ~((1ULL << 8 * nbytes) - 1)) == 0)
 			break;
 	}
 
@@ -198,4 +198,36 @@ libder_obj_type(const struct libder_object *obj)
 {
 
 	return (obj->type);
+}
+
+static void
+libder_obj_dump_internal(const struct libder_object *obj, FILE *fp, int lvl)
+{
+	static char spacer[4096];
+
+	/* Primitive, goofy, but functional. */
+	if (spacer[0] == '\0')
+		memset(spacer, ' ', sizeof(spacer));
+
+	if (lvl == sizeof(spacer) / 2) {
+		fprintf(fp, "%.*s...\n", lvl * 2, spacer);
+		return;
+	}
+
+	if (obj->children == NULL) {
+		fprintf(fp, "%.*sOBJECT[type=%x, size=%zx]\n", lvl * 2, spacer,
+		    obj->type, obj->length);
+		return;
+	}
+
+	fprintf(fp, "%.*sOBJECT[type=%x]\n", lvl * 2, spacer, obj->type);
+	for (obj = obj->children; obj != NULL; obj = obj->next)
+		libder_obj_dump_internal(obj, fp, lvl + 1);
+}
+
+void
+libder_obj_dump(const struct libder_object *root, FILE *fp)
+{
+
+	libder_obj_dump_internal(root, fp, 0);
 }

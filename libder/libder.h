@@ -113,3 +113,6 @@ libder_object	 libder_obj_child(const struct libder_object *, size_t);
 libder_object	 libder_obj_children(const struct libder_object *);
 libder_object	 libder_obj_next(const struct libder_object *);
 int		libder_obj_type(const struct libder_object *);
+
+/* Debugging aide -- probably shouldn't use. */
+void		 libder_obj_dump(const struct libder_object *, FILE *);
