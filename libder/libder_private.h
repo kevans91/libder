@@ -34,6 +34,7 @@ struct libder_ctx {
 struct libder_object {
 	int			 type;
 	size_t			 length;
+	size_t			 disk_size;
 	uint8_t			*payload;	/* NULL for sequences */
 	struct libder_object	*children;
 	struct libder_object	*next;
@@ -48,3 +49,5 @@ void	 libder_set_error(struct libder_ctx *, int, const char *, int);
 	libder_set_error((ctx), (error), __FILE__, __LINE__)
 
 struct libder_object	*libder_obj_alloc_internal(int, size_t, uint8_t *);
+size_t			 libder_size_length(size_t);
+size_t			 libder_obj_disk_size(struct libder_object *, bool);

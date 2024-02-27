@@ -69,6 +69,10 @@ bool			 libder_has_error(libder_ctx);
 libder_object		 libder_read(libder_ctx, const uint8_t *, size_t *);
 libder_object		 libder_read_fd(libder_ctx, int, size_t *);
 libder_object		 libder_read_file(libder_ctx, FILE *, size_t *);
+
+uint8_t			*libder_write(libder_ctx, libder_object, uint8_t *,
+			    size_t *);
+
 void			 libder_close(libder_ctx);
 
 #define	DER_CHILDREN(obj)	libder_obj_children(obj)

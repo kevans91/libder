@@ -76,6 +76,81 @@ libder_obj_alloc_internal(int type, size_t length, uint8_t *payload)
 	return (obj);
 }
 
+LIBDER_PRIVATE size_t
+libder_size_length(size_t sz)
+{
+	size_t nbytes;
+
+	/*
+	 * With DER, we use the smallest encoding necessary: less than 0x80
+	 * can be encoded in one byte.
+	 */
+	if (sz < 0x80)
+		return (1);
+
+	/*
+	 * We can support up to 0x7f size bytes, but we don't really have a way
+	 * to represent that right now.  It's a good thing this function only
+	 * takes a size_t, otherwise this would be a bit wrong.
+	 */
+	for (nbytes = 1; nbytes < sizeof(size_t); nbytes++) {
+		if ((sz & ~((1UL << nbytes) - 1)) == 0)
+			break;
+	}
+
+	/* Add one for the lead byte describing the length of the length. */
+	return (nbytes + 1);
+}
+
+/*
+ * Returns the size on-disk.  If an object has children, we encode the size as
+ * the sum of their lengths recursively.  Otherwise, we use the object's size.
+ *
+ * Returns 0 if the object size would overflow a size_t... perhaps we could
+ * lift this restriction later.
+ *
+ * Note that the size of the object will be set/updated to simplify later write
+ * calculations.
+ */
+LIBDER_PRIVATE size_t
+libder_obj_disk_size(struct libder_object *obj, bool include_header)
+{
+	struct libder_object *walker;
+	size_t disk_size, header_size;
+
+	disk_size = obj->length;
+	if (obj->children != NULL) {
+		/* We should have rejected these. */
+		assert(obj->length == 0);
+
+		for (walker = obj->children; walker != NULL; walker = walker->next) {
+			size_t child_size;
+
+			child_size = libder_obj_disk_size(walker, true);
+			if (SIZE_MAX - child_size < disk_size)
+				return (0);	/* Overflow */
+			disk_size += child_size;
+		}
+	}
+
+	obj->disk_size = disk_size;
+
+	/*
+	 * Children always include the header above, we only include the header
+	 * at the root if we're calculating how much space we need in total.
+	 */
+	if (include_header) {
+		/* Size of the length + the tag */
+		header_size = libder_size_length(disk_size) + 1;
+		if (SIZE_MAX - header_size < disk_size)
+			return (0);
+
+		disk_size += header_size;
+	}
+
+	return (disk_size);
+}
+
 void
 libder_obj_free(struct libder_object *obj)
 {
