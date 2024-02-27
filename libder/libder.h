@@ -96,8 +96,11 @@ typedef struct libder_object	*libder_object;
 /* Normalize constructed types that should be coalesced (e.g., strings, time). */
 #define	LIBDER_NORMALIZE_CONSTRUCTED	0x0001
 
+/* Strip redundant leading bits off of integers. */
+#define	LIBDER_NORMALIZE_INTEGERS	0x0002
+
 /* All valid bits. */
-#define	LIBDER_NORMALIZE_ALL		0x0001
+#define	LIBDER_NORMALIZE_ALL		0x0003
 
 libder_ctx		 libder_open(void);
 const char		*libder_get_error(libder_ctx);

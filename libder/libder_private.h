@@ -57,3 +57,4 @@ size_t			 libder_size_length(size_t);
 size_t			 libder_obj_disk_size(struct libder_object *, bool);
 bool			 libder_obj_may_coalesce_children(const struct libder_object *);
 bool			 libder_obj_coalesce_children(struct libder_object *, struct libder_ctx *);
+bool			 libder_obj_normalize(struct libder_object *, struct libder_ctx *);

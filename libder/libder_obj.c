@@ -342,3 +342,76 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 
 	return (true);
 }
+
+LIBDER_PRIVATE bool
+libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
+{
+	uint8_t *payload = obj->payload;
+	size_t length = obj->length, strip = 0;
+
+	if (BER_TYPE_CONSTRUCTED(obj->type)) {
+		/*
+		 * For constructed types, we'll see if we can coalesce their
+		 * children into them, then we'll proceed with whatever normalization
+		 * rules we can apply to the children.
+		 */
+		if (DER_NORMALIZING(ctx, CONSTRUCTED) && !libder_obj_coalesce_children(obj, ctx))
+			return (false);
+
+		for (struct libder_object *child = obj->children; child != NULL;
+		    child = child->next) {
+			if (!libder_obj_normalize(child, ctx))
+				return (false);
+		}
+
+		/* Nothing else for constructed types. */
+		return (true);
+	}
+
+	/* We only have normalization rules for universal types. */
+	if (BER_TYPE_CLASS(obj->type) != BC_UNIVERSAL)
+		return (true);
+
+	/* Apply any other normalization rules now. */
+	switch (obj->type) {
+	case BT_INTEGER:
+		if (!DER_NORMALIZING(ctx, INTEGERS))
+			return (true);
+
+		/*
+		 * Strip any leading sign-extended looking bytes, but note that
+		 * we can't strip a leading byte unless it matches the sign bit
+		 * on the next byte.
+		 */
+		for (size_t bpos = 0; bpos < length - 1; bpos++) {
+			if (payload[bpos] != 0 && payload[bpos] != 0xff)
+				break;
+
+			if (payload[bpos] == 0xff) {
+				/* Only if next byte indicates signed. */
+				if ((payload[bpos + 1] & 0x80) == 0)
+					break;
+			} else {
+				/* Only if next byte indicates unsigned. */
+				if ((payload[bpos + 1] & 0x80) != 0)
+					break;
+			}
+
+			strip++;
+		}
+
+		break;
+	default:
+		break;
+	}
+
+	if (strip != 0) {
+		payload += strip;
+		length -= strip;
+
+		memmove(&obj->payload[0], payload, length);
+		obj->length = length;
+	}
+
+	return (true);
+}

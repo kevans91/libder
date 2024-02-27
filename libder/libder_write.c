@@ -67,12 +67,13 @@ static bool
 libder_write_object_payload(struct libder_ctx *ctx, struct libder_object *obj,
     write_buffer_t *write_buffer, void *cookie)
 {
+	uint8_t *payload = obj->payload;
+	size_t length = obj->length;
 
-	/* XXX Normalization */
 	/* We don't expect `obj->payload` to be valid for a zero-size value. */
-	if (obj->length == 0)
+	if (length == 0)
 		return (true);
-	return (write_buffer(cookie, obj->payload, obj->length));
+	return (write_buffer(cookie, payload, length));
 }
 
 static bool
@@ -143,6 +144,14 @@ libder_write(struct libder_ctx *ctx, struct libder_object *root, uint8_t *buf,
 	 */
 	if ((buf == NULL && *bufsz != 0) || (buf != NULL && *bufsz == 0))
 		return (NULL);	/* XXX Surface error? */
+
+	/*
+	 * If we're doing any normalization beyond our standard size
+	 * normalization, we apply those rules up front since they may alter our
+	 * disk size every so slightly.
+	 */
+	if (ctx->normalize != 0 && !libder_obj_normalize(root, ctx))
+		return (NULL);
 
 	needed = libder_obj_disk_size(root, true);
 	if (needed == 0)
