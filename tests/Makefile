@@ -1,5 +1,6 @@
 
 PROGS=	fuzz_stream \
+	fuzz_write \
 	make_corpus
 MAN=
 CSTD=	c11
