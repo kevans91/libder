@@ -75,6 +75,7 @@ enum libder_error {
 	LDE_GARBAGE,		/* Garbage after encoded data */
 	LDE_UNEXPECTED,		/* Unexpected payload */
 	LDE_STREAMERR,		/* Stream error */
+	LDE_TRUNCVARLEN,	/* Variable length object truncated */
 };
 
 typedef struct libder_ctx	*libder_ctx;

@@ -481,9 +481,6 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 		goto out;
 	}
 
-	/* Enumerate children */
-	next = &obj->children;
-
 	if (varlen) {
 		childstream = stream;
 	} else {
@@ -497,6 +494,8 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 		childstream = &memstream;
 	}
 
+	/* Enumerate children */
+	next = &obj->children;
 	for (;;) {
 		child = libder_read_object(ctx, childstream);
 		if (child == NULL) {
@@ -518,11 +517,19 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 			 * and stop here.
 			 */
 			libder_obj_free(child);
+			/* Error detection */
+			varlen = false;
 			break;
 		}
 
 		*next = child;
 		next = &child->next;
+	}
+
+	if (varlen) {
+		libder_set_error(ctx, LDE_TRUNCVARLEN);
+		libder_obj_free(obj);
+		obj = NULL;
 	}
 
 out:

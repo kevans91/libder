@@ -27,6 +27,7 @@ static const struct libder_error_desc {
 	DESCRIBE(GARBAGE,	"Garbage after encoded data"),
 	DESCRIBE(UNEXPECTED,	"Unexpected payload"),
 	DESCRIBE(STREAMERR,	"Stream error"),
+	DESCRIBE(TRUNCVARLEN,	"Variable length object truncated"),
 };
 
 const char *
