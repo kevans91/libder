@@ -91,22 +91,26 @@ typedef struct libder_object	*libder_object;
 /*
  * By default we normalize everything, but we allow some subset of the
  * functionality to be disabled.  Lengths are non-optional and will always be
- * normalized to a fixed short or long length.
+ * normalized to a fixed short or long length.  The upper 32-bits of
+ * ctx->normalize are reserved for universal types so that we can quickly map
+ * those without assigning them names.
  */
-/* Normalize constructed types that should be coalesced (e.g., strings, time). */
-#define	LIBDER_NORMALIZE_CONSTRUCTED	0x0001
 
-/* Strip redundant leading bits off of integers. */
-#define	LIBDER_NORMALIZE_INTEGERS	0x0002
+/* Normalize constructed types that should be coalesced (e.g., strings, time). */
+#define	LIBDER_NORMALIZE_CONSTRUCTED	0x0000000000000001ULL
+
+/* Universal types (reserved) */
+#define	LIBDER_NORMALIZE_TYPE_MASK	0xffffffff00000000ULL
 
 /* All valid bits. */
-#define	LIBDER_NORMALIZE_ALL		0x0003
+#define	LIBDER_NORMALIZE_ALL		\
+    (LIBDER_NORMALIZE_TYPE_MASK | LIBDER_NORMALIZE_CONSTRUCTED)
 
 libder_ctx		 libder_open(void);
 const char		*libder_get_error(libder_ctx);
 bool			 libder_has_error(libder_ctx);
-uint32_t		 libder_get_normalize(libder_ctx);
-uint32_t		 libder_set_normalize(libder_ctx, uint32_t);
+uint64_t		 libder_get_normalize(libder_ctx);
+uint64_t		 libder_set_normalize(libder_ctx, uint64_t);
 libder_object		 libder_read(libder_ctx, const uint8_t *, size_t *);
 libder_object		 libder_read_fd(libder_ctx, int, size_t *);
 libder_object		 libder_read_file(libder_ctx, FILE *, size_t *);

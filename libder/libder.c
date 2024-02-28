@@ -47,7 +47,7 @@ libder_get_buffer_size(struct libder_ctx *ctx)
 	return (ctx->buffer_size);
 }
 
-uint32_t
+uint64_t
 libder_get_normalize(struct libder_ctx *ctx)
 {
 
@@ -57,10 +57,10 @@ libder_get_normalize(struct libder_ctx *ctx)
 /*
  * Set the normalization flags; returns the previous value.
  */
-uint32_t
-libder_set_normalize(struct libder_ctx *ctx, uint32_t nmask)
+uint64_t
+libder_set_normalize(struct libder_ctx *ctx, uint64_t nmask)
 {
-	uint32_t old = ctx->normalize;
+	uint64_t old = ctx->normalize;
 
 	ctx->normalize = (nmask & LIBDER_NORMALIZE_ALL);
 	return (old);

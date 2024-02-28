@@ -8,6 +8,7 @@
 
 #include <sys/param.h>
 
+#include <assert.h>
 #include <stdbool.h>
 
 #include "libder.h"
@@ -26,9 +27,9 @@ struct libder_ctx;
 struct libder_object;
 
 struct libder_ctx {
+	uint64_t		 normalize;
 	size_t			 buffer_size;
 	enum libder_error	 error;
-	uint32_t		 normalize;
 	int			 verbose;
 };
 
@@ -40,13 +41,21 @@ struct libder_object {
 	struct libder_object	*children;
 	struct libder_object	*prev;
 	struct libder_object	*next;
-	int			 type;
+	unsigned int		 type;
 };
 
 #define	LIBDER_PRIVATE	__attribute__((__visibility__("hidden")))
 
 #define	DER_NORMALIZING(ctx, bit)	\
     (((ctx)->normalize & (LIBDER_NORMALIZE_ ## bit)) != 0)
+
+static inline bool
+libder_normalizing_type(const struct libder_ctx *ctx, unsigned int type)
+{
+    assert(!BER_TYPE_CONSTRUCTED(type));
+    assert(BER_TYPE_CLASS(type) == BC_UNIVERSAL);
+    return ((ctx->normalize & ((1ULL << type) << 32ULL)) != 0);
+}
 
 size_t	 libder_get_buffer_size(struct libder_ctx *);
 void	 libder_set_error(struct libder_ctx *, int, const char *, int);

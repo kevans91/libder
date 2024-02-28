@@ -274,7 +274,7 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	struct libder_object *child, *tmp;
 	size_t new_size = 0, offset = 0;
 	uint8_t *coalesced_data;
-	int new_type;
+	unsigned int new_type;
 
 	if (!libder_obj_may_coalesce_children(obj))
 		return (true);
@@ -376,7 +376,7 @@ libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 	/* Apply any other normalization rules now. */
 	switch (obj->type) {
 	case BT_INTEGER:
-		if (!DER_NORMALIZING(ctx, INTEGERS))
+		if (!libder_normalizing_type(ctx, BT_INTEGER))
 			return (true);
 
 		/*
