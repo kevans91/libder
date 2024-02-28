@@ -34,9 +34,11 @@ struct libder_ctx {
 
 struct libder_object {
 	size_t			 length;
+	size_t			 nchildren;
 	size_t			 disk_size;
 	uint8_t			*payload;	/* NULL for sequences */
 	struct libder_object	*children;
+	struct libder_object	*prev;
 	struct libder_object	*next;
 	int			 type;
 };

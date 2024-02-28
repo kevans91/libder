@@ -426,7 +426,7 @@ static struct libder_object *
 libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 {
 	struct libder_payload payload = { 0 };
-	struct libder_object *child, **next, *obj;
+	struct libder_object *child, *last, **next, *obj;
 	struct libder_stream memstream, *childstream;
 	int error, type;
 	bool varlen;
@@ -495,6 +495,7 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 	}
 
 	/* Enumerate children */
+	last = NULL;
 	next = &obj->children;
 	for (;;) {
 		child = libder_read_object(ctx, childstream);
@@ -522,7 +523,9 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 			break;
 		}
 
-		*next = child;
+		obj->children++;
+		child->prev = last;
+		*next = last = child;
 		next = &child->next;
 	}
 

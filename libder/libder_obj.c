@@ -71,7 +71,8 @@ libder_obj_alloc_internal(int type, size_t length, uint8_t *payload)
 	obj->type = type;
 	obj->length = length;
 	obj->payload = payload;
-	obj->children = obj->next = NULL;
+	obj->children = obj->next = obj->prev = NULL;
+	obj->nchildren = 0;
 
 	return (obj);
 }
