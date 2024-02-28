@@ -65,6 +65,8 @@ void	 libder_set_error(struct libder_ctx *, int, const char *, int);
 
 struct libder_object	*libder_obj_alloc_internal(int, size_t, uint8_t *);
 size_t			 libder_size_length(size_t);
+bool			 libder_is_valid_obj(uint32_t, const uint8_t *, size_t,
+			    bool);
 size_t			 libder_obj_disk_size(struct libder_object *, bool);
 bool			 libder_obj_may_coalesce_children(const struct libder_object *);
 bool			 libder_obj_coalesce_children(struct libder_object *, struct libder_ctx *);

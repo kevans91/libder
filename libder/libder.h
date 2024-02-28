@@ -79,10 +79,10 @@ enum libder_error {
 	LDE_LONGLEN,		/* Encoded length too large (8 byte max) */
 	LDE_SHORTDATA,		/* Payload not available */
 	LDE_GARBAGE,		/* Garbage after encoded data */
-	LDE_UNEXPECTED,		/* Unexpected payload */
 	LDE_STREAMERR,		/* Stream error */
 	LDE_TRUNCVARLEN,	/* Variable length object truncated */
 	LDE_COALESCE_BADCHILD,	/* Bad child encountered when coalescing */
+	LDE_BADOBJECT,		/* Payload not valid for object type */
 };
 
 typedef struct libder_ctx	*libder_ctx;

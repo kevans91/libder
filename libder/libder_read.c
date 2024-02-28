@@ -428,7 +428,8 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 	struct libder_payload payload = { 0 };
 	struct libder_object *child, *last, **next, *obj;
 	struct libder_stream memstream, *childstream;
-	int error, type;
+	int error;
+	uint32_t type;
 	bool varlen;
 
 	/* Peel off one structure. */
@@ -439,8 +440,9 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 		return (NULL);	/* Error already set, if needed. */
 	}
 
-	if (type == BT_NULL && (varlen || payload.payload_size != 0)) {
-		libder_set_error(ctx, LDE_UNEXPECTED);
+	if (!libder_is_valid_obj(type, payload.payload_data,
+	    payload.payload_size, varlen)) {
+		libder_set_error(ctx, LDE_BADOBJECT);
 		goto out;
 	}
 
@@ -453,7 +455,7 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 		 * have an encoded size.
 		 */
 		if (varlen) {
-			libder_set_error(ctx, LDE_UNEXPECTED);
+			libder_set_error(ctx, LDE_BADVARLEN);
 			goto out;
 		}
 
@@ -523,7 +525,7 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 			break;
 		}
 
-		obj->children++;
+		obj->nchildren++;
 		child->prev = last;
 		*next = last = child;
 		next = &child->next;

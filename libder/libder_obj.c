@@ -234,6 +234,34 @@ libder_obj_dump(const struct libder_object *root, FILE *fp)
 }
 
 LIBDER_PRIVATE bool
+libder_is_valid_obj(uint32_t type, const uint8_t *payload, size_t payloadsz,
+    bool varlen)
+{
+
+	if (payload != NULL) {
+		assert(payloadsz > 0);
+		assert(!varlen);
+	} else {
+		assert(payloadsz == 0);
+	}
+
+	switch (type) {
+	case BT_NULL:
+		return (payloadsz == 0 && !varlen);
+	case BT_BITSTRING:
+		if (payloadsz == 1 && payload[0] != 0)
+			return (false);
+
+		/* We can't have more than seven unused bits. */
+		return (payloadsz < 2 || payload[0] < 8);
+	default:
+		break;
+	}
+
+	return (true);
+}
+
+LIBDER_PRIVATE bool
 libder_obj_may_coalesce_children(const struct libder_object *obj)
 {
 
@@ -247,6 +275,9 @@ libder_obj_may_coalesce_children(const struct libder_object *obj)
 
 	/* Strip the constructed bit off. */
 	switch (BER_TYPE(obj->type)) {
+	case BT_OCTETSTRING:	/* Raw data types */
+	case BT_BITSTRING:
+		return (true);
 	case BT_UTF8STRING:	/* String types */
 	case BT_NUMERICSTRING:
 	case BT_STRING:
@@ -266,6 +297,89 @@ libder_obj_may_coalesce_children(const struct libder_object *obj)
 	default:
 		return (false);
 	}
+}
+
+static size_t
+libder_merge_bitstrings(uint8_t *buf, size_t offset, size_t bufsz,
+    const struct libder_object *child)
+{
+	const uint8_t *rhs = child->payload;
+	size_t rsz = child->disk_size, startoff = offset;
+	uint8_t rhsunused = rhs[0], unused;
+
+	/* We have no unused bits if the buffer's empty as of yet. */
+	if (offset == 0)
+		unused = 0;
+	else
+		unused = buf[0];
+
+	/* Shave the lead byte off if we have one. */
+	if (rsz > 1) {
+		rhs++;
+		rsz--;
+	}
+
+	if (unused == 0) {
+		size_t extra = 0;
+
+		/*
+		 * In all cases we'll just write the unused byte separately,
+		 * since we're copying way past it in the common case and can't
+		 * just overwrite it as part of the memcpy().
+		 */
+		if (offset == 0) {
+			offset = 1;
+			extra++;
+		}
+
+		assert(rhsunused < 8);
+		assert(offset + rsz <= bufsz);
+
+		buf[0] = rhsunused;
+		memcpy(&buf[offset], rhs, rsz);
+
+		return (rsz + extra);
+	}
+
+	for (size_t i = 0; i < rsz; i++) {
+		uint8_t bits, next;
+
+		next = rhs[i];
+
+		/* Rotate the leading bits into the byte before it. */
+		assert(unused < 8);
+		bits = next >> (8 - unused);
+		buf[offset - 1] |= bits;
+
+		next <<= unused;
+
+		/*
+		 * Copy the new valid bits in; we shift over the old unused
+		 * amount up until the very last bit, then we have to recalculate
+		 * because we may be dropping it entirely.
+		 */
+		if (i == rsz - 1) {
+			assert(rhsunused < 8);
+
+			/*
+			 * Figure out how many unused bits we have between the two
+			 * buffers, sum % 8 is the new # unused bits.  It will be
+			 * somewhere in the range of [0, 14], and if it's at or
+			 * higher than a single byte then that's a clear indicator
+			 * that we shifted some unused bits into the previous byte and
+			 * can just halt here.
+			 */
+			unused += rhsunused;
+			buf[0] = unused % 8;
+			if (unused >= 8)
+				break;
+		}
+
+		assert(offset < bufsz);
+		buf[offset++] = next;
+	}
+
+	return (offset - startoff);
 }
 
 LIBDER_PRIVATE bool
@@ -299,10 +413,20 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 		 * loop.
 		 */
 		child->disk_size = libder_obj_disk_size(child, false);
+
+		/*
+		 * We strip the lead byte off of every element, and add it back
+		 * in pre-allocation.
+		 */
+		if (new_type == BT_BITSTRING && child->disk_size > 1)
+			child->disk_size--;
+
 		new_size += child->disk_size;
 	}
 
 	if (new_size != 0) {
+		if (new_type == BT_BITSTRING)
+			new_size++;
 		coalesced_data = malloc(new_size);
 		if (coalesced_data == NULL) {
 			libder_set_error(ctx, LDE_NOMEM);
@@ -325,19 +449,32 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 			assert(coalesced_data != NULL);
 			assert(offset + child->disk_size <= new_size);
 
-			memcpy(&coalesced_data[offset], child->payload, child->disk_size);
-			offset += child->disk_size;
+			/*
+			 * Bit strings are special, in that the first byte
+			 * contains the number of unused bits at the end.  We
+			 * need to trim that off when concatenating bit strings
+			 */
+			if (new_type == BT_BITSTRING) {
+				offset += libder_merge_bitstrings(coalesced_data,
+				    offset, new_size, child);
+			} else {
+				memcpy(&coalesced_data[offset], child->payload,
+				    child->disk_size);
+				offset += child->disk_size;
+			}
 		}
 
 		libder_obj_free(child);
 	}
+
+	assert(offset <= new_size);
 
 	/* Zap the children, we've absorbed their bodies. */
 	obj->children = NULL;
 
 	/* Finally, swap out the payload. */
 	free(obj->payload);
-	obj->length = new_size;
+	obj->length = offset;
 	obj->payload = coalesced_data;
 	obj->type = new_type;
 
