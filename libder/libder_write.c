@@ -73,6 +73,25 @@ libder_write_object_payload(struct libder_ctx *ctx, struct libder_object *obj,
 	/* We don't expect `obj->payload` to be valid for a zero-size value. */
 	if (length == 0)
 		return (true);
+
+	/*
+	 * We allow a NULL payload with a non-zero length to indicate that an
+	 * object should write zeroes out, we just didn't waste the memory on
+	 * these small allocations.  Ideally if it's more than just one or two
+	 * zeroes we're instead allocating a buffer for it and doing some more
+	 * efficient copying from there.
+	 */
+	if (payload == NULL) {
+		uint8_t zero = 0;
+
+		for (size_t i = 0; i < length; i++) {
+			if (!write_buffer(cookie, &zero, 1))
+				return (false);
+		}
+
+		return (true);
+	}
+
 	return (write_buffer(cookie, payload, length));
 }
 

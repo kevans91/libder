@@ -305,7 +305,9 @@ libder_merge_bitstrings(uint8_t *buf, size_t offset, size_t bufsz,
 {
 	const uint8_t *rhs = child->payload;
 	size_t rsz = child->disk_size, startoff = offset;
-	uint8_t rhsunused = rhs[0], unused;
+	uint8_t rhsunused, unused;
+
+	rhsunused = (rhs != NULL ? rhs[0] : 0);
 
 	/* We have no unused bits if the buffer's empty as of yet. */
 	if (offset == 0)
@@ -315,7 +317,8 @@ libder_merge_bitstrings(uint8_t *buf, size_t offset, size_t bufsz,
 
 	/* Shave the lead byte off if we have one. */
 	if (rsz > 1) {
-		rhs++;
+		if (rhs != NULL)
+			rhs++;
 		rsz--;
 	}
 
@@ -336,7 +339,10 @@ libder_merge_bitstrings(uint8_t *buf, size_t offset, size_t bufsz,
 		assert(offset + rsz <= bufsz);
 
 		buf[0] = rhsunused;
-		memcpy(&buf[offset], rhs, rsz);
+		if (rhs == NULL)
+			memset(&buf[offset], 0, rsz);
+		else
+			memcpy(&buf[offset], rhs, rsz);
 
 		return (rsz + extra);
 	}
@@ -344,7 +350,10 @@ libder_merge_bitstrings(uint8_t *buf, size_t offset, size_t bufsz,
 	for (size_t i = 0; i < rsz; i++) {
 		uint8_t bits, next;
 
-		next = rhs[i];
+		if (rhs == NULL)
+			next = 0;
+		else
+			next = rhs[i];
 
 		/* Rotate the leading bits into the byte before it. */
 		assert(unused < 8);
@@ -389,6 +398,7 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	size_t new_size = 0, offset = 0;
 	uint8_t *coalesced_data;
 	unsigned int new_type;
+	bool need_payload = false;
 
 	if (!libder_obj_may_coalesce_children(obj))
 		return (true);
@@ -422,9 +432,12 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 			child->disk_size--;
 
 		new_size += child->disk_size;
+
+		if (child->payload != NULL)
+			need_payload = true;
 	}
 
-	if (new_size != 0) {
+	if (new_size != 0 && need_payload) {
 		if (new_type == BT_BITSTRING)
 			new_size++;
 		coalesced_data = malloc(new_size);
@@ -445,7 +458,9 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	/* Avoid leaking any children as we coalesce. */
 	for (child = obj->children; child != NULL && (tmp = child->next, 1);
 	    child = tmp) {
-		if (child->disk_size != 0) {
+		if (child->disk_size != 0)
+			assert(coalesced_data != NULL || !need_payload);
+		if (child->disk_size != 0 && need_payload) {
 			assert(coalesced_data != NULL);
 			assert(offset + child->disk_size <= new_size);
 
@@ -458,9 +473,17 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 				offset += libder_merge_bitstrings(coalesced_data,
 				    offset, new_size, child);
 			} else {
-				memcpy(&coalesced_data[offset], child->payload,
-				    child->disk_size);
-				offset += child->disk_size;
+				/*
+				 * Write zeroes out if we don't have a payload.
+				 */
+				if (child->payload == NULL) {
+					memset(&coalesced_data[offset], 0, child->disk_size);
+					offset += child->disk_size;
+				} else {
+					memcpy(&coalesced_data[offset], child->payload,
+					    child->disk_size);
+					offset += child->disk_size;
+				}
 			}
 		}
 
@@ -481,11 +504,103 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	return (true);
 }
 
+static bool
+libder_obj_normalize_bitstring(struct libder_object *obj)
+{
+	uint8_t *payload = obj->payload;
+	size_t length = obj->length;
+	uint8_t unused;
+
+	if (payload == NULL || length < 2)
+		return (true);
+
+	unused = payload[0];
+	if (unused == 0)
+		return (true);
+
+	/* Clear the unused bits completely. */
+	payload[length - 1] &= ~((1 << unused) - 1);
+	return (true);
+}
+
+static bool
+libder_obj_normalize_boolean(struct libder_object *obj)
+{
+	uint8_t *payload = obj->payload;
+	size_t length = obj->length;
+	int sense = 0;
+
+	/*
+	 * Booleans must be collapsed down to a single byte, 0x00 or 0xff,
+	 * indicating false or true respectively.
+	 */
+	if (length == 1 && (payload[0] == 0x00 || payload[0] == 0xff))
+		return (true);
+
+	for (size_t bpos = 0; bpos < length - 1; bpos++) {
+		sense |= payload[bpos];
+	}
+
+	payload[0] = sense != 0 ? 0xff : 0x00;
+	obj->length = 1;
+	return (true);
+}
+
+static bool
+libder_obj_normalize_integer(struct libder_object *obj)
+{
+	uint8_t *payload = obj->payload;
+	size_t length = obj->length;
+	size_t strip = 0;
+
+	/*
+	 * Strip any leading sign-extended looking bytes, but note that
+	 * we can't strip a leading byte unless it matches the sign bit
+	 * on the next byte.
+	 */
+	for (size_t bpos = 0; bpos < length - 1; bpos++) {
+		if (payload[bpos] != 0 && payload[bpos] != 0xff)
+			break;
+
+		if (payload[bpos] == 0xff) {
+			/* Only if next byte indicates signed. */
+			if ((payload[bpos + 1] & 0x80) == 0)
+				break;
+		} else {
+			/* Only if next byte indicates unsigned. */
+			if ((payload[bpos + 1] & 0x80) != 0)
+				break;
+		}
+
+		strip++;
+	}
+
+	if (strip != 0) {
+		payload += strip;
+		length -= strip;
+
+		memmove(&obj->payload[0], payload, length);
+		obj->length = length;
+	}
+
+	return (true);
+}
+
+static bool
+libder_obj_normalize_set(struct libder_object *obj)
+{
+
+	if (obj->nchildren < 2)
+		return (true);
+
+	return (true);
+}
+
 LIBDER_PRIVATE bool
 libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 {
 	uint8_t *payload = obj->payload;
-	size_t length = obj->length, strip = 0;
+	size_t length = obj->length;
 
 	if (BER_TYPE_CONSTRUCTED(obj->type)) {
 		/*
@@ -496,59 +611,72 @@ libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 		if (DER_NORMALIZING(ctx, CONSTRUCTED) && !libder_obj_coalesce_children(obj, ctx))
 			return (false);
 
-		for (struct libder_object *child = obj->children; child != NULL;
-		    child = child->next) {
-			if (!libder_obj_normalize(child, ctx))
-				return (false);
-		}
+		/*
+		 * We may not be a constructed object anymore after the above coalescing
+		 * happened, so we check it again here.  Constructed objects need not go
+		 * any further, but the now-primitive coalesced types still need to be
+		 * normalized.
+		 */
+		if (BER_TYPE_CONSTRUCTED(obj->type)) {
+			for (struct libder_object *child = obj->children; child != NULL;
+			    child = child->next) {
+				if (!libder_obj_normalize(child, ctx))
+					return (false);
+			}
 
-		/* Nothing else for constructed types. */
-		return (true);
+			/* Sets must be sorted. */
+			if (obj->type != BT_SET)
+				return (true);
+
+			return (libder_obj_normalize_set(obj));
+		}
 	}
 
 	/* We only have normalization rules for universal types. */
 	if (BER_TYPE_CLASS(obj->type) != BC_UNIVERSAL)
 		return (true);
 
-	/* Apply any other normalization rules now. */
+	if (!libder_normalizing_type(ctx, obj->type))
+		return (true);
+
+	/*
+	 * We are clear to normalize this object, check for some easy cases that
+	 * don't need normalization.
+	 */
 	switch (obj->type) {
+	case BT_BITSTRING:
+	case BT_BOOLEAN:
 	case BT_INTEGER:
-		if (!libder_normalizing_type(ctx, BT_INTEGER))
-			return (true);
-
 		/*
-		 * Strip any leading sign-extended looking bytes, but note that
-		 * we can't strip a leading byte unless it matches the sign bit
-		 * on the next byte.
+		 * If we have a zero payload, then we need to encode them as a
+		 * single zero byte.
 		 */
-		for (size_t bpos = 0; bpos < length - 1; bpos++) {
-			if (payload[bpos] != 0 && payload[bpos] != 0xff)
-				break;
+		if (payload == NULL) {
+			if (length != 1)
+				obj->length = 1;
 
-			if (payload[bpos] == 0xff) {
-				/* Only if next byte indicates signed. */
-				if ((payload[bpos + 1] & 0x80) == 0)
-					break;
-			} else {
-				/* Only if next byte indicates unsigned. */
-				if ((payload[bpos + 1] & 0x80) != 0)
-					break;
-			}
-
-			strip++;
+			return (true);
 		}
 
 		break;
 	default:
+		/*
+		 * If we don't have a payload, we'll just leave it alone.
+		 */
+		if (payload == NULL)
+			return (true);
 		break;
 	}
 
-	if (strip != 0) {
-		payload += strip;
-		length -= strip;
-
-		memmove(&obj->payload[0], payload, length);
-		obj->length = length;
+	switch (obj->type) {
+	case BT_BITSTRING:
+		return (libder_obj_normalize_bitstring(obj));
+	case BT_BOOLEAN:
+		return (libder_obj_normalize_boolean(obj));
+	case BT_INTEGER:
+		return (libder_obj_normalize_integer(obj));
+	default:
+		break;
 	}
 
 	return (true);
