@@ -6,4 +6,6 @@ oom-*
 
 fuzz_*
 !*.c
+
 make_corpus
+test_pubkey
