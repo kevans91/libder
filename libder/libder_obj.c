@@ -201,6 +201,17 @@ libder_obj_type(const struct libder_object *obj)
 	return (obj->type);
 }
 
+const uint8_t *
+libder_obj_data(const struct libder_object *obj, size_t *osz)
+{
+
+	if (BER_TYPE_CONSTRUCTED(obj->type))
+		return (NULL);
+
+	*osz = obj->length;
+	return (obj->payload);
+}
+
 static void
 libder_obj_dump_internal(const struct libder_object *obj, FILE *fp, int lvl)
 {
