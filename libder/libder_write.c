@@ -99,6 +99,7 @@ static bool
 libder_write_object(struct libder_ctx *ctx, struct libder_object *obj,
     write_buffer_t *write_buffer, void *cookie)
 {
+	struct libder_object *child;
 
 	if (DER_NORMALIZING(ctx, CONSTRUCTED) && !libder_obj_coalesce_children(obj, ctx))
 		return (false);
@@ -116,8 +117,7 @@ libder_write_object(struct libder_ctx *ctx, struct libder_object *obj,
 	/* XXX Do we need to sort? */
 
 	/* Recurse on each child. */
-	for (struct libder_object *child = obj->children; child != NULL;
-	    child = child->next) {
+	DER_FOREACH_CHILD(child, obj) {
 		if (!libder_write_object(ctx, child, write_buffer, cookie))
 			return (false);
 	}

@@ -124,7 +124,7 @@ libder_obj_disk_size(struct libder_object *obj, bool include_header)
 		/* We should have rejected these. */
 		assert(obj->length == 0);
 
-		for (walker = obj->children; walker != NULL; walker = walker->next) {
+		DER_FOREACH_CHILD(walker, obj) {
 			size_t child_size;
 
 			child_size = libder_obj_disk_size(walker, true);
@@ -205,6 +205,7 @@ static void
 libder_obj_dump_internal(const struct libder_object *obj, FILE *fp, int lvl)
 {
 	static char spacer[4096];
+	const struct libder_object *child;
 
 	/* Primitive, goofy, but functional. */
 	if (spacer[0] == '\0')
@@ -222,8 +223,8 @@ libder_obj_dump_internal(const struct libder_object *obj, FILE *fp, int lvl)
 	}
 
 	fprintf(fp, "%.*sOBJECT[type=%x]\n", lvl * 2, spacer, obj->type);
-	for (obj = obj->children; obj != NULL; obj = obj->next)
-		libder_obj_dump_internal(obj, fp, lvl + 1);
+	DER_FOREACH_CHILD(child, obj)
+		libder_obj_dump_internal(child, fp, lvl + 1);
 }
 
 void
@@ -406,7 +407,8 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	assert(BER_TYPE_CLASS(obj->type) == BC_UNIVERSAL);
 	assert(BER_TYPE_CONSTRUCTED(obj->type));
 	new_type = BER_TYPE(obj->type);
-	for (child = obj->children; child != NULL; child = child->next) {
+
+	DER_FOREACH_CHILD(child, obj) {
 		/* Sanity check and coalesce our children. */
 		if (BER_FULL_TYPE(child->type) != new_type) {
 			libder_set_error(ctx, LDE_COALESCE_BADCHILD);
@@ -456,8 +458,7 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	}
 
 	/* Avoid leaking any children as we coalesce. */
-	for (child = obj->children; child != NULL && (tmp = child->next, 1);
-	    child = tmp) {
+	DER_FOREACH_CHILD_SAFE(child, obj, tmp) {
 		if (child->disk_size != 0)
 			assert(coalesced_data != NULL || !need_payload);
 		if (child->disk_size != 0 && need_payload) {
@@ -618,8 +619,9 @@ libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 		 * normalized.
 		 */
 		if (BER_TYPE_CONSTRUCTED(obj->type)) {
-			for (struct libder_object *child = obj->children; child != NULL;
-			    child = child->next) {
+			struct libder_object *child;
+
+			DER_FOREACH_CHILD(child, obj) {
 				if (!libder_obj_normalize(child, ctx))
 					return (false);
 			}
