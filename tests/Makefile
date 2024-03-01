@@ -15,9 +15,14 @@ LDADD.fuzz_stream+=	-pthread
 CFLAGS+=	-I${LIBDER}
 
 .for fuzzprog in ${PROGS:Mfuzz_*}
-CFLAGS.${fuzzprog}+=	-fsanitize=address,undefined,fuzzer
+SANITIZERS.${fuzzprog}+=	fuzzer
+.endfor
+
+.for allprog in ${PROGS}
+SANITIZERS.${allprog}+=	address undefined
+CFLAGS.${allprog}+=		-fsanitize=${SANITIZERS.${allprog}:ts,}
 # XXX Shouldn't link against libsys
-LDFLAGS.${fuzzprog}+=	-fsanitize=address,undefined,fuzzer -lsys
+LDFLAGS.${allprog}+=		-fsanitize=${SANITIZERS.${allprog}:ts,} -lsys
 .endfor
 
 .include <bsd.progs.mk>
