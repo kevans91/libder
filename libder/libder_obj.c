@@ -401,7 +401,7 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	unsigned int new_type;
 	bool need_payload = false;
 
-	if (!libder_obj_may_coalesce_children(obj))
+	if (obj->nchildren == 0 || !libder_obj_may_coalesce_children(obj))
 		return (true);
 
 	assert(BER_TYPE_CLASS(obj->type) == BC_UNIVERSAL);
