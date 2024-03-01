@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <err.h>
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,16 +21,22 @@
 
 #define	LARGE_SIZE	(1024 * 64)
 
+static const uint8_t empty_seq[] = { BT_SEQUENCE, 0x00 };
+static const uint8_t long_size[21] = { BT_OCTETSTRING, 0x83, 0x00, 0x00, 0x10 };
+
 /* 64k */
 #define	LARGE_SIZE_ENCODING	0x83, 0x01, 0x00, 0x00
+static const uint8_t large_octet[LARGE_SIZE + 5] = { BT_OCTETSTRING, LARGE_SIZE_ENCODING };
 
 #define	VARLEN_SEQ	BT_OCTETSTRING, 0x04, 0x01, 0x02, 0x03, 0x04
 #define	VARLEN_CHILDREN	VARLEN_SEQ, VARLEN_SEQ, VARLEN_SEQ
-static const uint8_t empty_seq[] = { BT_SEQUENCE, 0x00 };
-static const uint8_t long_size[21] = { BT_OCTETSTRING, 0x83, 0x00, 0x00, 0x10 };
-static const uint8_t large_octet[LARGE_SIZE + 5] = { BT_OCTETSTRING, LARGE_SIZE_ENCODING };
 static const uint8_t varlen[] = { BT_SEQUENCE, 0x80,
     VARLEN_CHILDREN, 0x00, 0x00 };
+
+#define	BITSTRING1	BT_BITSTRING, 0x04, 0x03, 0xc0, 0xc0, 0xcc
+#define	BITSTRING2	BT_BITSTRING, 0x04, 0x05, 0xdd, 0xdd, 0xff
+static const uint8_t constructed_bitstring[] = { 0x20 | BT_BITSTRING,
+    2 * 6, BITSTRING1, BITSTRING2 };
 
 #define	FUZZER_SEED(seq)	{ #seq, sizeof(seq), seq }
 static const struct seed {
@@ -41,24 +48,38 @@ static const struct seed {
 	FUZZER_SEED(long_size),
 	FUZZER_SEED(large_octet),
 	FUZZER_SEED(varlen),
+	FUZZER_SEED(constructed_bitstring),
 };
+
+static void
+usage(void)
+{
+	fprintf(stderr, "usage: %s [-H] <corpus-dir>\n", getprogname());
+	exit(1);
+}
 
 int
 main(int argc, char *argv[])
 {
 	struct fuzz_params params;
 	const struct seed *seed;
+	const char *seed_dir;
 	char *name;
 	int dirfd = -1, fd = -1;
+	bool striphdr = false;
 
-	if (argc != 2) {
-		fprintf(stderr, "usage: %s <corpus-dir>\n", argv[0]);
-		return (1);
-	}
+	if (argc < 2 || argc > 3)
+		usage();
 
-	dirfd = open(argv[1], O_SEARCH);
+	if (argc == 3 && strcmp(argv[1], "-H") != 0)
+		usage();
+
+	striphdr = argc == 3;
+	seed_dir = argv[argc - 1];
+
+	dirfd = open(seed_dir, O_SEARCH);
 	if (dirfd == -1)
-		err(1, "%s: open", argv[1]);
+		err(1, "%s: open", seed_dir);
 
 	memset(&params, 0, sizeof(params));
 
@@ -77,7 +98,8 @@ main(int argc, char *argv[])
 				assert(fd != -1);
 
 				/* Write our params + seed */
-				assert(write(fd, &params, sizeof(params)) == sizeof(params));
+				if (!striphdr)
+					assert(write(fd, &params, sizeof(params)) == sizeof(params));
 				assert(write(fd, seed->seed_seq, seed->seed_seqsz) == seed->seed_seqsz);
 
 				free(name);

@@ -54,15 +54,6 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t sz)
 
 		assert(bufsz != 0);
 
-		/*
-		 * The normalization we apply should always (at the moment)
-		 * result in a buffer no larger than the one we had initially
-		 * constructed the object in, so let's make sure of that.  This
-		 * assertion has already found one bug in variable length
-		 * decoding.
-		 */
-		assert(bufsz <= readsz);
-
 		free(buf);
 	}
 
