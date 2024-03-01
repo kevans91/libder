@@ -71,7 +71,7 @@ libder_obj_alloc_internal(int type, size_t length, uint8_t *payload)
 	obj->type = type;
 	obj->length = length;
 	obj->payload = payload;
-	obj->children = obj->next = obj->prev = NULL;
+	obj->children = obj->next = NULL;
 	obj->nchildren = 0;
 
 	return (obj);
@@ -587,12 +587,88 @@ libder_obj_normalize_integer(struct libder_object *obj)
 	return (true);
 }
 
-static bool
-libder_obj_normalize_set(struct libder_object *obj)
+/*
+ * Similar to strcmp(), returns -1, 0, or 1.
+ */
+static int
+libder_obj_compare(const struct libder_object *lhs, const struct libder_object *rhs)
 {
+	size_t end;
+	uint8_t lbyte, rbyte;
+
+	if (lhs->type < rhs->type)
+		return (-1);
+	if (lhs->type > rhs->type)
+		return (1);
+
+	/*
+	 * We'll compare up to the longer of the two; the shorter payload is
+	 * zero-extended at the end for comparison purposes.
+	 */
+	end = MAX(lhs->length, rhs->length);
+	for (size_t pos = 0; pos < end; pos++) {
+		if (lhs->payload != NULL && pos < lhs->length)
+			lbyte = lhs->payload[pos];
+		else
+			lbyte = 0;
+		if (rhs->payload != NULL && pos < rhs->length)
+			rbyte = rhs->payload[pos];
+		else
+			rbyte = 0;
+
+		if (lbyte < rbyte)
+			return (-1);
+		else if (lbyte > rbyte)
+			return (1);
+	}
+
+	return (0);
+}
+
+static int
+libder_obj_normalize_set_cmp(const void *lhs_entry, const void *rhs_entry)
+{
+	struct libder_object *lhs = *((struct libder_object **)lhs_entry);
+	struct libder_object *rhs = *((struct libder_object **)rhs_entry);
+
+	return (libder_obj_compare(lhs, rhs));
+}
+
+static bool
+libder_obj_normalize_set(struct libder_object *obj, struct libder_ctx *ctx)
+{
+	struct libder_object **sorting;
+	struct libder_object *child;
+	size_t offset = 0;
 
 	if (obj->nchildren < 2)
 		return (true);
+
+	/*
+	 * Kind of goofy, but we'll just take advantage of a standardized
+	 * qsort() rather than rolling our own sort -- we have no idea how large
+	 * of a dataset we're working with.
+	 */
+	sorting = calloc(obj->nchildren, sizeof(*sorting));
+	if (sorting == NULL) {
+		libder_set_error(ctx, LDE_NOMEM);
+		return (false);
+	}
+
+	DER_FOREACH_CHILD(child, obj) {
+		sorting[offset++] = child;
+	}
+
+	assert(offset == obj->nchildren);
+	qsort(sorting, offset, sizeof(*sorting), libder_obj_normalize_set_cmp);
+
+	obj->children = sorting[0];
+	sorting[offset - 1]->next = NULL;
+	for (size_t i = 0; i < offset - 1; i++) {
+		sorting[i]->next = sorting[i + 1];
+	}
+
+	free(sorting);
 
 	return (true);
 }
@@ -630,7 +706,7 @@ libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 			if (obj->type != BT_SET)
 				return (true);
 
-			return (libder_obj_normalize_set(obj));
+			return (libder_obj_normalize_set(obj, ctx));
 		}
 	}
 
