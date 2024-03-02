@@ -267,6 +267,58 @@ libder_obj_data(const struct libder_object *obj, size_t *osz)
 	return (obj->payload);
 }
 
+static const char *
+libder_type_name(const struct libder_tag *type)
+{
+	static char namebuf[128];
+
+	if (type->tag_encoded) {
+		return ("{ ... }");
+	}
+
+	if (type->tag_class != BC_UNIVERSAL)
+		goto fallback;
+
+#define	UTYPE(val)	case val: return (#val + 3)
+	switch (type->tag_short) {
+	UTYPE(BT_RESERVED);
+	UTYPE(BT_BOOLEAN);
+	UTYPE(BT_INTEGER);
+	UTYPE(BT_BITSTRING);
+	UTYPE(BT_OCTETSTRING);
+	UTYPE(BT_NULL);
+	UTYPE(BT_OID);
+	UTYPE(BT_OBJDESC);
+	UTYPE(BT_EXTERNAL);
+	UTYPE(BT_REAL);
+	UTYPE(BT_ENUMERATED);
+	UTYPE(BT_PDV);
+	UTYPE(BT_UTF8STRING);
+	UTYPE(BT_RELOID);
+	UTYPE(BT_NUMERICSTRING);
+	UTYPE(BT_STRING);
+	UTYPE(BT_TELEXSTRING);
+	UTYPE(BT_VIDEOTEXSTRING);
+	UTYPE(BT_IA5STRING);
+	UTYPE(BT_UTCTIME);
+	UTYPE(BT_GENTIME);
+	UTYPE(BT_GFXSTRING);
+	UTYPE(BT_VISSTRING);
+	UTYPE(BT_GENSTRING);
+	UTYPE(BT_UNIVSTRING);
+	UTYPE(BT_CHARSTRING);
+	UTYPE(BT_BMPSTRING);
+	case BT_SEQUENCE & ~BER_TYPE_CONSTRUCTED_MASK:
+	case BT_SEQUENCE: return "SEQUENCE";
+	case BT_SET & ~BER_TYPE_CONSTRUCTED_MASK:
+	case BT_SET: return "SET";
+	}
+
+fallback:
+	snprintf(namebuf, sizeof(namebuf), "%.02x", libder_type_simple(type));
+	return (&namebuf[0]);
+}
+
 static void
 libder_obj_dump_internal(const struct libder_object *obj, FILE *fp, int lvl)
 {
@@ -283,22 +335,12 @@ libder_obj_dump_internal(const struct libder_object *obj, FILE *fp, int lvl)
 		return;
 	}
 
-	/*
-	 * XXX tag_short is technically wrong here, we should actually decode it
-	 * into a buffer if it's longer than a uint64_t.
-	 */
 	if (obj->children == NULL) {
 		size_t col = lvl * 8;
 
-		if (!obj->type->tag_encoded) {
-			col += fprintf(fp, "%.*sOBJECT[type=%x, size=%zx]%s",
-			    lvl, spacer, libder_type_simple(obj->type),
-			    obj->length, obj->length != 0 ? ": " : "");
-		} else {
-			/* XXX */
-			col += fprintf(fp, "%.*sOBJECT[type={...}, size=%zx]%s",
-			    lvl, spacer, obj->length, obj->length != 0 ? ": " : "");
-		}
+		col += fprintf(fp, "%.*sOBJECT[type=%s, size=%zx]%s",
+		    lvl, spacer, libder_type_name(obj->type),
+		    obj->length, obj->length != 0 ? ": " : "");
 
 		if (obj->length != 0) {
 			uint8_t printb;
@@ -324,13 +366,8 @@ libder_obj_dump_internal(const struct libder_object *obj, FILE *fp, int lvl)
 		return;
 	}
 
-	/* Ditto above for tag_short */
-	if (!obj->type->tag_encoded) {
-		fprintf(fp, "%.*sOBJECT[type=%x]\n", lvl, spacer,
-		    libder_type_simple(obj->type));
-	} else {
-		fprintf(fp, "%.*sOBJECT[type={...}]\n", lvl, spacer);
-	}
+	fprintf(fp, "%.*sOBJECT[type=%s]\n", lvl, spacer,
+	    libder_type_name(obj->type));
 	DER_FOREACH_CHILD(child, obj)
 		libder_obj_dump_internal(child, fp, lvl + 1);
 }
