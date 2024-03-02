@@ -5,7 +5,7 @@ oom-*
 *.log
 
 fuzz_*
+test_*
 !*.c
 
 make_corpus
-test_pubkey

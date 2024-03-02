@@ -2,6 +2,7 @@
 PROGS=	fuzz_stream \
 	fuzz_write \
 	make_corpus \
+	test_privkey \
 	test_pubkey
 MAN=
 CSTD=	c11
