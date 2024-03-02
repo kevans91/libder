@@ -16,26 +16,15 @@
 #define	DER_CHILDREN(obj)	((obj)->children)
 #define	DER_NEXT(obj)		((obj)->next)
 
-struct libder_object *
-libder_obj_alloc(struct libder_ctx *ctx, struct libder_tag *type,
-    const uint8_t *payload_in, size_t length)
+static uint8_t *
+libder_obj_alloc_copy_payload(struct libder_ctx *ctx, const uint8_t *payload_in,
+    size_t length)
 {
-	struct libder_object *obj;
 	uint8_t *payload;
 
 	if ((length == 0 && payload_in != NULL) ||
 	    (length != 0 && payload_in == NULL)) {
 		libder_set_error(ctx, LDE_INVAL);
-		return (NULL);
-	}
-
-	/*
-	 * In addition to our normal constraints, constructed objects coming in
-	 * from lib users should not have payloads.
-	 */
-	if (!libder_is_valid_obj(ctx, type, payload_in, length, false) ||
-	    (type->tag_constructed && length != 0)) {
-		libder_set_error(ctx, LDE_BADOBJECT);
 		return (NULL);
 	}
 
@@ -51,9 +40,70 @@ libder_obj_alloc(struct libder_ctx *ctx, struct libder_tag *type,
 		payload = NULL;
 	}
 
-	obj = libder_obj_alloc_internal(type, length, payload);
+	return (payload);
+}
+
+static bool
+libder_obj_alloc_check(struct libder_ctx *ctx, struct libder_tag *type,
+    const uint8_t *payload_in, size_t length)
+{
+	/*
+	 * In addition to our normal constraints, constructed objects coming in
+	 * from lib users should not have payloads.
+	 */
+	if (!libder_is_valid_obj(ctx, type, payload_in, length, false) ||
+	    (type->tag_constructed && length != 0)) {
+		libder_set_error(ctx, LDE_BADOBJECT);
+		return (false);
+	}
+
+	return (true);
+}
+
+struct libder_object *
+libder_obj_alloc(struct libder_ctx *ctx, struct libder_tag *type,
+    const uint8_t *payload_in, size_t length)
+{
+	struct libder_object *obj;
+	uint8_t *payload;
+
+	if (!libder_obj_alloc_check(ctx, type, payload_in, length))
+		return (NULL);
+
+	payload = libder_obj_alloc_copy_payload(ctx, payload_in, length);
+
+	obj = libder_obj_alloc_internal(type, length, payload, 0);
 	if (obj == NULL) {
 		free(payload);
+		libder_set_error(ctx, LDE_NOMEM);
+	}
+
+	return (obj);
+}
+
+struct libder_object *
+libder_obj_alloc_simple(struct libder_ctx *ctx, uint8_t stype,
+    const uint8_t *payload_in, size_t length)
+{
+	struct libder_object *obj;
+	struct libder_tag *type;
+	uint8_t *payload;
+
+	type = libder_type_alloc_simple(ctx, stype);
+	if (type == NULL)
+		return (NULL);
+
+	if (!libder_obj_alloc_check(ctx, type, payload_in, length)) {
+		libder_type_free(type);
+		return (NULL);
+	}
+
+	payload = libder_obj_alloc_copy_payload(ctx, payload_in, length);
+
+	obj = libder_obj_alloc_internal(type, length, payload, LDO_OWNTAG);
+	if (obj == NULL) {
+		free(payload);
+		libder_type_free(type);
 		libder_set_error(ctx, LDE_NOMEM);
 	}
 
@@ -65,9 +115,12 @@ libder_obj_alloc(struct libder_ctx *ctx, struct libder_tag *type,
  * the payload on success.
  */
 LIBDER_PRIVATE struct libder_object *
-libder_obj_alloc_internal(struct libder_tag *type, size_t length, uint8_t *payload)
+libder_obj_alloc_internal(struct libder_tag *type, size_t length,
+    uint8_t *payload, uint32_t flags)
 {
 	struct libder_object *obj;
+
+	assert((flags & ~(LDO_OWNTAG)) == 0);
 
 	if (length != 0)
 		assert(payload != NULL);
@@ -78,13 +131,17 @@ libder_obj_alloc_internal(struct libder_tag *type, size_t length, uint8_t *paylo
 	if (obj == NULL)
 		return (NULL);
 
-	obj->type = libder_type_alloc();
-	if (obj->type == NULL) {
-		free(obj);
-		return (NULL);
-	}
+	if ((flags & LDO_OWNTAG) != 0) {
+		obj->type = type;
+	} else {
+		obj->type = libder_type_alloc();
+		if (obj->type == NULL) {
+			free(obj);
+			return (NULL);
+		}
 
-	memcpy(obj->type, type, sizeof(*type));
+		memcpy(obj->type, type, sizeof(*type));
+	}
 
 	/* Invalidate the tag if it's an encoded one -- we own it now. */
 	if (type->tag_encoded) {

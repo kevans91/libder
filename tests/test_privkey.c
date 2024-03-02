@@ -72,71 +72,42 @@ test_construction(libder_ctx ctx, const uint8_t *buf, size_t bufsz)
 	uint8_t *out;
 	libder_object obj, oidp, pubp, root;
 	libder_object keystring;
-	libder_tag type;
 	size_t outsz;
 	uint8_t data;
 
-	type = libder_type_alloc_simple(ctx, BT_SEQUENCE);
-	assert(type != NULL);
-
-	root = libder_obj_alloc(ctx, type, NULL, 0);
+	root = libder_obj_alloc_simple(ctx, BT_SEQUENCE, NULL, 0);
 	assert(root != NULL);
-	libder_type_free(type);
-
-	type = libder_type_alloc_simple(ctx, BT_INTEGER);
-	assert(type != NULL);
 
 	data = 1;
-	obj = libder_obj_alloc(ctx, type, &data, 1);
+	obj = libder_obj_alloc_simple(ctx, BT_INTEGER, &data, 1);
 	assert(obj != NULL);
 	assert(libder_obj_append(root, obj));
-	libder_type_free(type);
 
 	/* Private key material */
-	type = libder_type_alloc_simple(ctx, BT_OCTETSTRING);
-	assert(type != NULL);
-
-	obj = libder_obj_alloc(ctx, type, privdata, sizeof(privdata));
+	obj = libder_obj_alloc_simple(ctx, BT_OCTETSTRING, privdata, sizeof(privdata));
 	assert(obj != NULL);
 	assert(libder_obj_append(root, obj));
-	libder_type_free(type);
 
 	/* Now throw in the OID and pubkey containers */
-	type = libder_type_alloc_simple(ctx,
-	    (BC_CONTEXT << 6) | BER_TYPE_CONSTRUCTED_MASK | 0);
-	assert(type != NULL);
-
-	oidp = libder_obj_alloc(ctx, type, NULL, 0);
+	oidp = libder_obj_alloc_simple(ctx,
+	    (BC_CONTEXT << 6) | BER_TYPE_CONSTRUCTED_MASK | 0, NULL, 0);
 	assert(oidp != NULL);
 	assert(libder_obj_append(root, oidp));
-	libder_type_free(type);
 
-	type = libder_type_alloc_simple(ctx,
-	    (BC_CONTEXT << 6) | BER_TYPE_CONSTRUCTED_MASK | 1);
-	assert(type != NULL);
-
-	pubp = libder_obj_alloc(ctx, type, NULL, 0);
+	pubp = libder_obj_alloc_simple(ctx,
+	    (BC_CONTEXT << 6) | BER_TYPE_CONSTRUCTED_MASK | 1, NULL, 0);
 	assert(pubp != NULL);
 	assert(libder_obj_append(root, pubp));
-	libder_type_free(type);
 
 	/* Actually add the OID */
-	type = libder_type_alloc_simple(ctx, BT_OID);
-	assert(type != NULL);
-
-	obj = libder_obj_alloc(ctx, type, oid_secp112r1, sizeof(oid_secp112r1));
+	obj = libder_obj_alloc_simple(ctx, BT_OID, oid_secp112r1, sizeof(oid_secp112r1));
 	assert(obj != NULL);
 	assert(libder_obj_append(oidp, obj));
-	libder_type_free(type);
 
 	/* Finally, add the pubkey */
-	type = libder_type_alloc_simple(ctx, BT_BITSTRING);
-	assert(type != NULL);
-
-	obj = libder_obj_alloc(ctx, type, pubdata, sizeof(pubdata));
+	obj = libder_obj_alloc_simple(ctx, BT_BITSTRING, pubdata, sizeof(pubdata));
 	assert(obj != NULL);
 	assert(libder_obj_append(pubp, obj));
-	libder_type_free(type);
 
 	out = NULL;
 	outsz = 0;

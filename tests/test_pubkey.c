@@ -54,40 +54,27 @@ test_construction(libder_ctx ctx, const uint8_t *buf, size_t bufsz)
 	uint8_t *out;
 	libder_object obj, params, root;
 	libder_object keystring;
-	libder_tag type;
 	size_t outsz;
 
-	type = libder_type_alloc_simple(ctx, BT_SEQUENCE);
-	assert(type != NULL);
-
-	root = libder_obj_alloc(ctx, type, NULL, 0);
+	root = libder_obj_alloc_simple(ctx, BT_SEQUENCE, NULL, 0);
 	assert(root != NULL);
 
-	params = libder_obj_alloc(ctx, type, NULL, 0);
+	params = libder_obj_alloc_simple(ctx, BT_SEQUENCE, NULL, 0);
 	assert(params != NULL);
 	assert(libder_obj_append(root, params));
-	libder_type_free(type);
 
-	type = libder_type_alloc_simple(ctx, BT_BITSTRING);
-	assert(type != NULL);
-
-	keystring = libder_obj_alloc(ctx, type, pubdata, sizeof(pubdata));
+	keystring = libder_obj_alloc_simple(ctx, BT_BITSTRING, pubdata, sizeof(pubdata));
 	assert(keystring != NULL);
 	assert(libder_obj_append(root, keystring));
-	libder_type_free(type);
-
-	type = libder_type_alloc_simple(ctx, BT_OID);
-	assert(type != NULL);
 
 	/* Now go back and build the two params, id and curve */
-	obj = libder_obj_alloc(ctx, type, oid_ecpubkey, sizeof(oid_ecpubkey));
+	obj = libder_obj_alloc_simple(ctx, BT_OID, oid_ecpubkey, sizeof(oid_ecpubkey));
 	assert(obj != NULL);
 	assert(libder_obj_append(params, obj));
 
-	obj = libder_obj_alloc(ctx, type, oid_secp256k1, sizeof(oid_secp256k1));
+	obj = libder_obj_alloc_simple(ctx, BT_OID, oid_secp256k1, sizeof(oid_secp256k1));
 	assert(obj != NULL);
 	assert(libder_obj_append(params, obj));
-	libder_type_free(type);
 
 	out = NULL;
 	outsz = 0;

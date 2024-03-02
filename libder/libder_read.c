@@ -567,7 +567,7 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 			goto out;
 		}
 
-		obj = libder_obj_alloc_internal(&type, payloadsz, payload_data);
+		obj = libder_obj_alloc_internal(&type, payloadsz, payload_data, 0);
 		if (obj == NULL) {
 			free(payload_data);
 			libder_set_error(ctx, LDE_NOMEM);
@@ -576,7 +576,7 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 		return (obj);
 	}
 
-	obj = libder_obj_alloc_internal(&type, 0, NULL);
+	obj = libder_obj_alloc_internal(&type, 0, NULL, 0);
 	if (obj == NULL) {
 		libder_set_error(ctx, LDE_NOMEM);
 		goto out;

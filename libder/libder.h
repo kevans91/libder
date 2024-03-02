@@ -157,6 +157,8 @@ void			 libder_close(libder_ctx);
 	    (var) = (tvar))
 
 libder_object	 libder_obj_alloc(libder_ctx, libder_tag, const uint8_t *, size_t);
+libder_object	 libder_obj_alloc_simple(libder_ctx, uint8_t, const uint8_t *,
+		    size_t);
 void		 libder_obj_free(libder_object);
 
 bool		 libder_obj_append(libder_object, libder_object);
