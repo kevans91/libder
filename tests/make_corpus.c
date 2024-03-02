@@ -6,6 +6,7 @@
 
 #include <sys/param.h>
 
+#undef NDEBUG
 #include <assert.h>
 #include <err.h>
 #include <fcntl.h>
@@ -58,14 +59,42 @@ usage(void)
 	exit(1);
 }
 
+static void
+write_one(const struct fuzz_params *params, const struct seed *seed, int dirfd,
+    bool striphdr)
+{
+	char *name;
+	int fd = -1;
+
+	assert(asprintf(&name, "base_%d_%d_%d_%s", params->type,
+	    params->buftype, params->strict, seed->seed_name) != -1);
+
+	fd = openat(dirfd, name, O_RDWR | O_TRUNC | O_CREAT, 0644);
+	assert(fd != -1);
+
+	/*
+	 * Write our params + seed; if we're stripping the header we won't have
+	 * the full params, but we'll still have our signal byte for strict
+	 * mode.
+	 */
+	if (!striphdr)
+		assert(write(fd, &params,  sizeof(params)) == sizeof(params));
+	else
+		assert(write(fd, &params->strict, sizeof(params->strict)) == sizeof(params->strict));
+
+	assert(write(fd, seed->seed_seq, seed->seed_seqsz) == seed->seed_seqsz);
+
+	free(name);
+	close(fd);
+}
+
 int
 main(int argc, char *argv[])
 {
 	struct fuzz_params params;
 	const struct seed *seed;
 	const char *seed_dir;
-	char *name;
-	int dirfd = -1, fd = -1;
+	int dirfd = -1;
 	bool striphdr = false;
 
 	if (argc < 2 || argc > 3)
@@ -89,22 +118,14 @@ main(int argc, char *argv[])
 		for (int buffered = 0; buffered < BUFFER_END; buffered++) {
 			params.buftype = buffered;
 
-			for (size_t i = 0; i < nitems(seeds); i++) {
-				seed = &seeds[i];
-				assert(asprintf(&name, "base_%d_%d_%s", type,
-				    buffered, seed->seed_name) != -1);
+			for (uint8_t strict = 0; strict < 2; strict++) {
+				params.strict = strict;
 
-				fd = openat(dirfd, name, O_RDWR | O_TRUNC | O_CREAT, 0644);
-				assert(fd != -1);
+				for (size_t i = 0; i < nitems(seeds); i++) {
+					seed = &seeds[i];
 
-				/* Write our params + seed */
-				if (!striphdr)
-					assert(write(fd, &params, sizeof(params)) == sizeof(params));
-				assert(write(fd, seed->seed_seq, seed->seed_seqsz) == seed->seed_seqsz);
-
-				free(name);
-				close(fd);
-				fd = -1;
+					write_one(&params, seed, dirfd, striphdr);
+				}
 			}
 
 			if (type != STREAM_FILE)

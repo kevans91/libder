@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "libder_private.h"
 
@@ -58,9 +59,30 @@ LIBDER_PRIVATE void
 libder_normalize_type(struct libder_ctx *ctx, struct libder_tag *type)
 {
 	uint8_t tagval;
+	size_t offset;
 
 	if (!type->tag_encoded || !DER_NORMALIZING(ctx, TAGS))
 		return;
+
+	/*
+	 * Strip any leading 0's off -- not possible in strict mode.
+	 */
+	for (offset = 0; offset < type->tag_size - 1; offset++) {
+		if ((type->tag_long[offset] & 0x7f) != 0)
+			break;
+	}
+
+	assert(offset == 0 || !ctx->strict);
+	if (offset != 0) {
+		type->tag_size -= offset;
+		memmove(&type->tag_long[0], &type->tag_long[offset],
+		    type->tag_size);
+	}
+
+	/*
+	 * We might be able to strip it down to a unencoded tag_short, if only
+	 * the lower 5 bits are in use.
+	 */
 	if (type->tag_size != 1 || (type->tag_long[0] & ~0x1f) != 0)
 		return;
 

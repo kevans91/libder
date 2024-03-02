@@ -28,7 +28,8 @@ struct fuzz_params {
 	enum stream_buffer	 buftype;
 
 #define	PARAM_PAD_START	_pad0
-	uint8_t			 _pad0[6];
+	uint8_t			 strict;
+	uint8_t			 _pad0[5];
 
 	/* Give me plenty of padding. */
 	uint64_t		 padding[3];

@@ -26,6 +26,7 @@ libder_open(void)
 	ctx->buffer_size = 0;
 	ctx->verbose = 0;
 	ctx->normalize = LIBDER_NORMALIZE_ALL;
+	ctx->strict = true;
 
 	return (ctx);
 }
@@ -66,11 +67,36 @@ libder_set_normalize(struct libder_ctx *ctx, uint64_t nmask)
 	return (old);
 }
 
-void
-libder_set_verbose(struct libder_ctx *ctx, int verbose)
+bool
+libder_get_strict(struct libder_ctx *ctx)
 {
 
+	return (ctx->strict);
+}
+
+bool
+libder_set_strict(struct libder_ctx *ctx, bool strict)
+{
+	bool oval = ctx->strict;
+
+	ctx->strict = strict;
+	return (oval);
+}
+
+int
+libder_get_verbose(struct libder_ctx *ctx)
+{
+
+	return (ctx->verbose);
+}
+
+int
+libder_set_verbose(struct libder_ctx *ctx, int verbose)
+{
+	int oval = ctx->verbose;
+
 	ctx->verbose = verbose;
+	return (oval);
 }
 
 void

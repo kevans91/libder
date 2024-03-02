@@ -29,7 +29,14 @@ static const struct libder_error_desc {
 	DESCRIBE(TRUNCVARLEN,	"Variable length object truncated"),
 	DESCRIBE(COALESCE_BADCHILD,	"Bad child encountered when coalescing"),
 	DESCRIBE(BADOBJECT,	"Payload not valid for object type"),
-	DESCRIBE(BADLONGTAG,	"Long tag encoded incorrectly"),
+	DESCRIBE(STRICT_EOC,		"Strict: end-of-content violation"),
+	DESCRIBE(STRICT_TAG,		"Strict: tag violation"),
+	DESCRIBE(STRICT_PVARLEN,	"Strict: primitive using indefinite length"),
+	DESCRIBE(STRICT_BOOLEAN,	"Strict: boolean encoded incorrectly"),
+	DESCRIBE(STRICT_NULL,		"Strict: null encoded incorrectly"),
+	DESCRIBE(STRICT_PRIMITIVE,	"Strict: type must be primitive"),
+	DESCRIBE(STRICT_CONSTRUCTED,	"Strict: type must be constructed"),
+	DESCRIBE(STRICT_BITSTRING,	"Strict: malformed constructed bitstring"),
 };
 
 const char *

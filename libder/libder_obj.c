@@ -264,8 +264,8 @@ libder_obj_dump(const struct libder_object *root, FILE *fp)
 }
 
 LIBDER_PRIVATE bool
-libder_is_valid_obj(const struct libder_tag *type, const uint8_t *payload,
-    size_t payloadsz, bool varlen)
+libder_is_valid_obj(struct libder_ctx *ctx, const struct libder_tag *type,
+    const uint8_t *payload, size_t payloadsz, bool varlen)
 {
 
 	if (payload != NULL) {
@@ -279,15 +279,61 @@ libder_is_valid_obj(const struct libder_tag *type, const uint8_t *payload,
 	if (type->tag_class != BC_UNIVERSAL || type->tag_encoded)
 		return (true);
 
+	if (ctx->strict && type->tag_constructed) {
+		/* Types that don't allow constructed */
+		switch (libder_type_simple(type) & ~BER_TYPE_CONSTRUCTED_MASK) {
+		case BT_BOOLEAN:
+		case BT_INTEGER:
+		case BT_REAL:
+		case BT_NULL:
+			libder_set_error(ctx, LDE_STRICT_PRIMITIVE);
+			return (false);
+		default:
+			break;
+		}
+	} else if (ctx->strict) {
+		/* Types that cannot be primitive */
+		switch (libder_type_simple(type) | BER_TYPE_CONSTRUCTED_MASK) {
+		case BT_SEQUENCE:
+		case BT_SET:
+			libder_set_error(ctx, LDE_STRICT_CONSTRUCTED);
+			return (false);
+		default:
+			break;
+		}
+	}
+
+	/* Further validation */
 	switch (libder_type_simple(type)) {
+	case BT_BOOLEAN:
+		if (ctx->strict && payloadsz != 1) {
+			libder_set_error(ctx, LDE_STRICT_BOOLEAN);
+			return (false);
+		}
+		break;
 	case BT_NULL:
-		return (payloadsz == 0 && !varlen);
-	case BT_BITSTRING:
+		if (ctx->strict && (payloadsz != 0 || varlen)) {
+			libder_set_error(ctx, LDE_STRICT_NULL);
+			return (false);
+		}
+		break;
+	case BT_BITSTRING:	/* Primitive */
+		/*
+		 * Bit strings require more invasive parsing later during child
+		 * coalescing or normalization, so we alway strictly enforce
+		 * their form.
+		 */
 		if (payloadsz == 1 && payload[0] != 0)
 			return (false);
 
 		/* We can't have more than seven unused bits. */
 		return (payloadsz < 2 || payload[0] < 8);
+	case BT_RESERVED:
+		if (payloadsz != 0) {
+			libder_set_error(ctx, LDE_STRICT_EOC);
+			return (false);
+		}
+		break;
 	default:
 		break;
 	}
@@ -428,11 +474,11 @@ libder_merge_bitstrings(uint8_t *buf, size_t offset, size_t bufsz,
 LIBDER_PRIVATE bool
 libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 {
-	struct libder_object *child, *tmp;
+	struct libder_object *child, *last_child, *tmp;
 	size_t new_size = 0, offset = 0;
 	uint8_t *coalesced_data;
 	uint8_t type;
-	bool need_payload = false;
+	bool need_payload = false, strict_violation = false;
 
 	if (obj->nchildren == 0 || !libder_obj_may_coalesce_children(obj))
 		return (true);
@@ -442,6 +488,7 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	assert(!obj->type->tag_encoded);
 	type = obj->type->tag_short;
 
+	last_child = NULL;
 	DER_FOREACH_CHILD(child, obj) {
 		/* Sanity check and coalesce our children. */
 		if (child->type->tag_class != BC_UNIVERSAL ||
@@ -467,6 +514,8 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 		 */
 		if (type == BT_BITSTRING && child->disk_size > 1)
 			child->disk_size--;
+		if (child->disk_size > 0)
+			last_child = child;
 
 		new_size += child->disk_size;
 
@@ -496,6 +545,13 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	DER_FOREACH_CHILD_SAFE(child, obj, tmp) {
 		if (child->disk_size != 0)
 			assert(coalesced_data != NULL || !need_payload);
+
+		/*
+		 * Just free everything when we violate strict rules.
+		 */
+		if (strict_violation)
+			goto violated;
+
 		if (child->disk_size != 0 && need_payload) {
 			assert(coalesced_data != NULL);
 			assert(offset + child->disk_size <= new_size);
@@ -506,6 +562,19 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 			 * need to trim that off when concatenating bit strings
 			 */
 			if (type == BT_BITSTRING) {
+				if (ctx->strict && child != last_child &&
+				    child->disk_size > 1 && child->payload != NULL) {
+					/*
+					 * Each child must have a multiple of 8,
+					 * up until the final one.
+					 */
+					if (child->payload[0] != 0) {
+						libder_set_error(ctx, LDE_STRICT_BITSTRING);
+						strict_violation = true;
+						goto violated;
+					}
+				}
+
 				offset += libder_merge_bitstrings(coalesced_data,
 				    offset, new_size, child);
 			} else {
@@ -523,6 +592,7 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 			}
 		}
 
+violated:
 		libder_obj_free(child);
 	}
 
@@ -530,6 +600,11 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 
 	/* Zap the children, we've absorbed their bodies. */
 	obj->children = NULL;
+
+	if (strict_violation) {
+		free(coalesced_data);
+		return (false);
+	}
 
 	/* Finally, swap out the payload. */
 	free(obj->payload);
@@ -843,6 +918,15 @@ libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 		}
 
 		break;
+	case BT_NULL:
+		if (payload != NULL) {
+			free(payload);
+
+			obj->payload = NULL;
+			obj->length = 0;
+		}
+
+		return (true);
 	default:
 		/*
 		 * If we don't have a payload, we'll just leave it alone.

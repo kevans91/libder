@@ -353,9 +353,9 @@ der_read_structure_tag(struct libder_ctx *ctx, struct libder_stream *stream,
 			continue;
 		}
 
-		if (offset == 0 && (val & ~0x80) == 0) {
-			/* Bogus! Shouldn't happen. */
-			libder_set_error(ctx, LDE_BADLONGTAG);
+		/* We might normalize it later, depending on flags. */
+		if (offset == 0 && (val & 0x7f) == 0 && ctx->strict) {
+			libder_set_error(ctx, LDE_STRICT_TAG);
 			return (false);
 		}
 
@@ -433,6 +433,11 @@ der_read_structure(struct libder_ctx *ctx, struct libder_stream *stream,
 				rsz |= *buf++;
 			}
 		} else {
+			if (ctx->strict && !type->tag_constructed) {
+				libder_set_error(ctx, LDE_STRICT_PVARLEN);
+				goto failed;
+			}
+
 			*varlen = true;
 		}
 	} else {
@@ -529,9 +534,14 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 		return (NULL);	/* Error already set, if needed. */
 	}
 
-	if (!libder_is_valid_obj(&type, payload.payload_data,
+	if (!libder_is_valid_obj(ctx, &type, payload.payload_data,
 	    payload.payload_size, varlen)) {
-		libder_set_error(ctx, LDE_BADOBJECT);
+		/*
+		 * libder_is_valid_obj may set a more specific error, e.g., a
+		 * strict mode violation.
+		 */
+		if (ctx->error == LDE_NONE)
+			libder_set_error(ctx, LDE_BADOBJECT);
 		goto out;
 	}
 
@@ -602,13 +612,26 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 			break;
 		}
 
-		if (varlen && libder_type_is(child->type, BT_RESERVED) &&
+		if (libder_type_is(child->type, BT_RESERVED) &&
 		    child->length == 0) {
 			/*
 			 * This child is just a marker; free it, don't leak it,
 			 * and stop here.
 			 */
 			libder_obj_free(child);
+
+			/* Malformed: shall not be present */
+			if (!varlen) {
+				if (ctx->strict) {
+					libder_set_error(ctx, LDE_STRICT_EOC);
+					libder_obj_free(obj);
+					obj = NULL;
+					break;
+				}
+
+				continue;
+			}
+
 			/* Error detection */
 			varlen = false;
 			break;
@@ -640,6 +663,14 @@ libder_read_stream(struct libder_ctx *ctx, struct libder_stream *stream)
 	ctx->error = LDE_NONE;
 	root = libder_read_object(ctx, stream);
 
+	if (root != NULL && libder_type_is(root->type, BT_RESERVED) &&
+	    root->length == 0) {
+		/* Strict violation: must not appear. */
+		if (ctx->strict)
+			libder_set_error(ctx, LDE_STRICT_EOC);
+		libder_obj_free(root);
+		root = NULL;
+	}
 	if (root != NULL)
 		assert(stream->stream_consumed != 0);
 	return (root);

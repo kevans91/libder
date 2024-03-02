@@ -76,6 +76,7 @@ fuzz_fd(const struct fuzz_params *fparams, const uint8_t *data, size_t sz)
 	totalsz = 0;
 	ret = 0;
 	ctx = libder_open();
+	libder_set_strict(ctx, !!fparams->strict);
 	for (;;) {
 		size_t readsz = 0;
 
@@ -128,6 +129,7 @@ fuzz_file(const struct fuzz_params *fparams, const uint8_t *data, size_t sz)
 	totalsz = 0;
 	ret = 0;
 	ctx = libder_open();
+	libder_set_strict(ctx, !!fparams->strict);
 	while (!feof(fp)) {
 		size_t readsz = 0;
 
@@ -161,6 +163,7 @@ fuzz_plain(const struct fuzz_params *fparams, const uint8_t *data, size_t sz)
 
 	ret = 0;
 	ctx = libder_open();
+	libder_set_strict(ctx, !!fparams->strict);
 	do {
 		size_t readsz;
 

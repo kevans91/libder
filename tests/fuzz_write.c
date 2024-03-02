@@ -24,14 +24,27 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t sz)
 {
 	libder_ctx ctx;
 	libder_object obj;
-	size_t readsz = sz;
+	size_t readsz;
 	int ret;
+	bool strict;
 
-	if (sz == 0)
+	if (sz < 2)
 		return (-1);
 
+	/*
+	 * I worked this in originally by just using the high bit of the first
+	 * byte, but then I realized that encoding it that way would make it
+	 * impossible to get strict validation of universal and application
+	 * tags.  The former is a bit more important than the latter.
+	 */
+	strict = !!data[0];
+	data++;
+	sz--;
+
 	ctx = libder_open();
+	libder_set_strict(ctx, strict);
 	ret = -1;
+	readsz = sz;
 	obj = libder_read(ctx, data, &readsz);
 	if (obj == NULL || readsz != sz)
 		goto out;

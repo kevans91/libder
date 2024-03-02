@@ -83,7 +83,16 @@ enum libder_error {
 	LDE_TRUNCVARLEN,	/* Variable length object truncated */
 	LDE_COALESCE_BADCHILD,	/* Bad child encountered when coalescing */
 	LDE_BADOBJECT,		/* Payload not valid for object type */
-	LDE_BADLONGTAG,		/* Long tag encoded incorrectly */
+
+	/* Strict violations */
+	LDE_STRICT_EOC,		/* Strict: end-of-content violation */
+	LDE_STRICT_TAG,		/* Strict: tag violation */
+	LDE_STRICT_PVARLEN,	/* Strict: primitive using indefinite length */
+	LDE_STRICT_BOOLEAN,	/* Strict: boolean encoded incorrectly */
+	LDE_STRICT_NULL,	/* Strict: null encoded incorrectly */
+	LDE_STRICT_PRIMITIVE,	/* Strict: type must be primitive */
+	LDE_STRICT_CONSTRUCTED,	/* Strict: type must be constructed */
+	LDE_STRICT_BITSTRING,	/* Strict: malformed constructed bitstring */
 };
 
 typedef struct libder_ctx	*libder_ctx;
@@ -122,6 +131,10 @@ const char		*libder_get_error(libder_ctx);
 bool			 libder_has_error(libder_ctx);
 uint64_t		 libder_get_normalize(libder_ctx);
 uint64_t		 libder_set_normalize(libder_ctx, uint64_t);
+bool			 libder_get_strict(libder_ctx);
+bool			 libder_set_strict(libder_ctx, bool);
+int			 libder_get_verbose(libder_ctx);
+int			 libder_set_verbose(libder_ctx, int);
 libder_object		 libder_read(libder_ctx, const uint8_t *, size_t *);
 libder_object		 libder_read_fd(libder_ctx, int, size_t *);
 libder_object		 libder_read_file(libder_ctx, FILE *, size_t *);
@@ -144,7 +157,6 @@ void			 libder_close(libder_ctx);
 	    (var) = (tvar))
 
 libder_object	 libder_obj_alloc(libder_ctx, libder_tag, size_t, const uint8_t *);
-void		 libder_set_verbose(libder_ctx, int);
 void		 libder_obj_free(libder_object);
 
 libder_object	 libder_obj_child(const struct libder_object *, size_t);
