@@ -128,5 +128,4 @@ bool			 libder_obj_normalize(struct libder_object *, struct libder_ctx *);
 
 struct libder_tag	*libder_type_alloc(void);
 void			 libder_type_release(struct libder_tag *);
-void			 libder_type_free(struct libder_tag *);
 void			 libder_normalize_type(struct libder_ctx *, struct libder_tag *);

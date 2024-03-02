@@ -28,6 +28,39 @@ libder_type_alloc(void)
 	return (calloc(1, sizeof(struct libder_tag)));
 }
 
+struct libder_tag *
+libder_type_dup(struct libder_ctx *ctx, const struct libder_tag *dtype)
+{
+	struct libder_tag *type;
+
+	type = libder_type_alloc();
+	if (type == NULL) {
+		libder_set_error(ctx, LDE_NOMEM);
+		return (NULL);
+	}
+
+	memcpy(type, dtype, sizeof(*dtype));
+	return (type);
+}
+
+struct libder_tag *
+libder_type_alloc_simple(struct libder_ctx *ctx, uint8_t typeval)
+{
+	struct libder_tag *type;
+
+	type = libder_type_alloc();
+	if (type == NULL) {
+		libder_set_error(ctx, LDE_NOMEM);
+		return (NULL);
+	}
+
+	type->tag_size = sizeof(typeval);
+	type->tag_class = BER_TYPE_CLASS(typeval);
+	type->tag_constructed = BER_TYPE_CONSTRUCTED(typeval);
+	type->tag_short = BER_TYPE(typeval);
+	return (type);
+}
+
 LIBDER_PRIVATE void
 libder_type_release(struct libder_tag *type)
 {
@@ -44,7 +77,7 @@ libder_type_release(struct libder_tag *type)
 	}
 }
 
-LIBDER_PRIVATE void
+void
 libder_type_free(struct libder_tag *type)
 {
 

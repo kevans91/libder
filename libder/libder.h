@@ -156,9 +156,10 @@ void			 libder_close(libder_ctx);
 	    (var) && ((tvar) = DER_NEXT((var)), 1);	\
 	    (var) = (tvar))
 
-libder_object	 libder_obj_alloc(libder_ctx, libder_tag, size_t, const uint8_t *);
+libder_object	 libder_obj_alloc(libder_ctx, libder_tag, const uint8_t *, size_t);
 void		 libder_obj_free(libder_object);
 
+bool		 libder_obj_append(libder_object, libder_object);
 libder_object	 libder_obj_child(const struct libder_object *, size_t);
 libder_object	 libder_obj_children(const struct libder_object *);
 libder_object	 libder_obj_next(const struct libder_object *);
@@ -169,4 +170,8 @@ const uint8_t	*libder_obj_data(const struct libder_object *, size_t *);
 void		 libder_obj_dump(const struct libder_object *, FILE *);
 
 #define	libder_type_simple	libder_type_simple_abi
-uint8_t		libder_type_simple(const struct libder_tag *);
+uint8_t		 libder_type_simple(const struct libder_tag *);
+
+libder_tag	 libder_type_alloc_simple(libder_ctx, uint8_t);
+libder_tag	 libder_type_dup(struct libder_ctx *, const struct libder_tag *);
+void		 libder_type_free(struct libder_tag *);

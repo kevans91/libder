@@ -17,15 +17,25 @@
 #define	DER_NEXT(obj)		((obj)->next)
 
 struct libder_object *
-libder_obj_alloc(struct libder_ctx *ctx, struct libder_tag * type, size_t length,
-    const uint8_t *payload_in)
+libder_obj_alloc(struct libder_ctx *ctx, struct libder_tag *type,
+    const uint8_t *payload_in, size_t length)
 {
 	struct libder_object *obj;
 	uint8_t *payload;
 
-	if ((length == 0 && payload != NULL) ||
-	    (length != 0 && payload == NULL)) {
+	if ((length == 0 && payload_in != NULL) ||
+	    (length != 0 && payload_in == NULL)) {
 		libder_set_error(ctx, LDE_INVAL);
+		return (NULL);
+	}
+
+	/*
+	 * In addition to our normal constraints, constructed objects coming in
+	 * from lib users should not have payloads.
+	 */
+	if (!libder_is_valid_obj(ctx, type, payload_in, length, false) ||
+	    (type->tag_constructed && length != 0)) {
+		libder_set_error(ctx, LDE_BADOBJECT);
 		return (NULL);
 	}
 
@@ -76,8 +86,11 @@ libder_obj_alloc_internal(struct libder_tag *type, size_t length, uint8_t *paylo
 
 	memcpy(obj->type, type, sizeof(*type));
 
-	/* Invalidate the tag -- we own it now. */
-	memset(type, 0, sizeof(*type));
+	/* Invalidate the tag if it's an encoded one -- we own it now. */
+	if (type->tag_encoded) {
+		type->tag_long = NULL;
+		type->tag_encoded = false;
+	}
 
 	obj->length = length;
 	obj->payload = payload;
@@ -178,6 +191,35 @@ libder_obj_free(struct libder_object *obj)
 	free(obj->payload);
 	libder_type_free(obj->type);
 	free(obj);
+}
+
+bool
+libder_obj_append(struct libder_object *parent, struct libder_object *child)
+{
+	struct libder_object *end, *walker;
+
+	if (!parent->type->tag_constructed) {
+		__builtin_trap();
+		return (false);
+	}
+
+	/* XXX Type check */
+
+	if (parent->nchildren == 0) {
+		parent->children = child;
+		parent->nchildren++;
+		return (true);
+	}
+
+	/* Walk the chain */
+	DER_FOREACH_CHILD(walker, parent) {
+		end = walker;
+	}
+
+	assert(end != NULL);
+	end->next = child;
+	parent->nchildren++;
+	return (true);
 }
 
 struct libder_object *
