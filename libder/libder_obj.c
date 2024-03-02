@@ -287,13 +287,25 @@ libder_obj_dump_internal(const struct libder_object *obj, FILE *fp, int lvl)
 	 * into a buffer if it's longer than a uint64_t.
 	 */
 	if (obj->children == NULL) {
-		fprintf(fp, "%.*sOBJECT[type=%x, size=%zx]\n", lvl * 2, spacer,
-		    obj->type->tag_short, obj->length);
+		if (!obj->type->tag_encoded) {
+			fprintf(fp, "%.*sOBJECT[type=%x, size=%zx]\n", lvl * 2, spacer,
+			    libder_type_simple(obj->type), obj->length);
+		} else {
+			/* XXX */
+			fprintf(fp, "%.*sOBJECT[type={...}, size=%zx]\n", lvl * 2, spacer,
+			    obj->length);
+		}
+
 		return;
 	}
 
 	/* Ditto above for tag_short */
-	fprintf(fp, "%.*sOBJECT[type=%x]\n", lvl * 2, spacer, obj->type->tag_short);
+	if (!obj->type->tag_encoded) {
+		fprintf(fp, "%.*sOBJECT[type=%x]\n", lvl * 2, spacer,
+		    libder_type_simple(obj->type));
+	} else {
+		fprintf(fp, "%.*sOBJECT[type={...}]\n", lvl * 2, spacer);
+	}
 	DER_FOREACH_CHILD(child, obj)
 		libder_obj_dump_internal(child, fp, lvl + 1);
 }

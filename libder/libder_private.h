@@ -99,7 +99,7 @@ libder_type_is(const struct libder_tag *type, uint8_t utype)
 static inline uint8_t
 libder_type_simple(const struct libder_tag *type)
 {
-	uint8_t encoded = 0;
+	uint8_t encoded = type->tag_class << 6;
 
 	assert(!type->tag_encoded);
 	if (type->tag_constructed)
