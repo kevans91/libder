@@ -17,7 +17,7 @@
 #define	DER_NEXT(obj)		((obj)->next)
 
 struct libder_object *
-libder_obj_alloc(struct libder_ctx *ctx, int type, size_t length,
+libder_obj_alloc(struct libder_ctx *ctx, struct libder_tag * type, size_t length,
     const uint8_t *payload_in)
 {
 	struct libder_object *obj;
@@ -55,7 +55,7 @@ libder_obj_alloc(struct libder_ctx *ctx, int type, size_t length,
  * the payload on success.
  */
 LIBDER_PRIVATE struct libder_object *
-libder_obj_alloc_internal(int type, size_t length, uint8_t *payload)
+libder_obj_alloc_internal(struct libder_tag *type, size_t length, uint8_t *payload)
 {
 	struct libder_object *obj;
 
@@ -68,7 +68,17 @@ libder_obj_alloc_internal(int type, size_t length, uint8_t *payload)
 	if (obj == NULL)
 		return (NULL);
 
-	obj->type = type;
+	obj->type = libder_type_alloc();
+	if (obj->type == NULL) {
+		free(obj);
+		return (NULL);
+	}
+
+	memcpy(obj->type, type, sizeof(*type));
+
+	/* Invalidate the tag -- we own it now. */
+	memset(type, 0, sizeof(*type));
+
 	obj->length = length;
 	obj->payload = payload;
 	obj->children = obj->next = NULL;
@@ -141,8 +151,10 @@ libder_obj_disk_size(struct libder_object *obj, bool include_header)
 	 * at the root if we're calculating how much space we need in total.
 	 */
 	if (include_header) {
-		/* Size of the length + the tag */
-		header_size = libder_size_length(disk_size) + 1;
+		/* Size of the length + the tag (arbitrary length) */
+		header_size = libder_size_length(disk_size) + obj->type->tag_size;
+		if (obj->type->tag_encoded)
+			header_size++;	/* Lead byte */
 		if (SIZE_MAX - header_size < disk_size)
 			return (0);
 
@@ -164,6 +176,7 @@ libder_obj_free(struct libder_object *obj)
 		libder_obj_free(child);
 
 	free(obj->payload);
+	libder_type_free(obj->type);
 	free(obj);
 }
 
@@ -194,8 +207,8 @@ libder_obj_next(const struct libder_object *obj)
 	return (obj->next);
 }
 
-int
-libder_obj_type(const struct libder_object *obj)
+libder_tag
+libder_obj_type(struct libder_object *obj)
 {
 
 	return (obj->type);
@@ -205,7 +218,7 @@ const uint8_t *
 libder_obj_data(const struct libder_object *obj, size_t *osz)
 {
 
-	if (BER_TYPE_CONSTRUCTED(obj->type))
+	if (obj->type->tag_constructed)
 		return (NULL);
 
 	*osz = obj->length;
@@ -227,13 +240,18 @@ libder_obj_dump_internal(const struct libder_object *obj, FILE *fp, int lvl)
 		return;
 	}
 
+	/*
+	 * XXX tag_short is technically wrong here, we should actually decode it
+	 * into a buffer if it's longer than a uint64_t.
+	 */
 	if (obj->children == NULL) {
 		fprintf(fp, "%.*sOBJECT[type=%x, size=%zx]\n", lvl * 2, spacer,
-		    obj->type, obj->length);
+		    obj->type->tag_short, obj->length);
 		return;
 	}
 
-	fprintf(fp, "%.*sOBJECT[type=%x]\n", lvl * 2, spacer, obj->type);
+	/* Ditto above for tag_short */
+	fprintf(fp, "%.*sOBJECT[type=%x]\n", lvl * 2, spacer, obj->type->tag_short);
 	DER_FOREACH_CHILD(child, obj)
 		libder_obj_dump_internal(child, fp, lvl + 1);
 }
@@ -246,8 +264,8 @@ libder_obj_dump(const struct libder_object *root, FILE *fp)
 }
 
 LIBDER_PRIVATE bool
-libder_is_valid_obj(uint32_t type, const uint8_t *payload, size_t payloadsz,
-    bool varlen)
+libder_is_valid_obj(const struct libder_tag *type, const uint8_t *payload,
+    size_t payloadsz, bool varlen)
 {
 
 	if (payload != NULL) {
@@ -257,7 +275,11 @@ libder_is_valid_obj(uint32_t type, const uint8_t *payload, size_t payloadsz,
 		assert(payloadsz == 0);
 	}
 
-	switch (type) {
+	/* No rules for non-universal types. */
+	if (type->tag_class != BC_UNIVERSAL || type->tag_encoded)
+		return (true);
+
+	switch (libder_type_simple(type)) {
 	case BT_NULL:
 		return (payloadsz == 0 && !varlen);
 	case BT_BITSTRING:
@@ -278,15 +300,15 @@ libder_obj_may_coalesce_children(const struct libder_object *obj)
 {
 
 	/* No clue about non-universal types. */
-	if (BER_TYPE_CLASS(obj->type) != BC_UNIVERSAL)
+	if (obj->type->tag_class != BC_UNIVERSAL || obj->type->tag_encoded)
 		return (false);
 
 	/* Constructed types don't have children. */
-	if (!BER_TYPE_CONSTRUCTED(obj->type))
+	if (!obj->type->tag_constructed)
 		return (false);
 
 	/* Strip the constructed bit off. */
-	switch (BER_TYPE(obj->type)) {
+	switch (libder_type_simple(obj->type)) {
 	case BT_OCTETSTRING:	/* Raw data types */
 	case BT_BITSTRING:
 		return (true);
@@ -409,19 +431,21 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	struct libder_object *child, *tmp;
 	size_t new_size = 0, offset = 0;
 	uint8_t *coalesced_data;
-	unsigned int new_type;
+	uint8_t type;
 	bool need_payload = false;
 
 	if (obj->nchildren == 0 || !libder_obj_may_coalesce_children(obj))
 		return (true);
 
-	assert(BER_TYPE_CLASS(obj->type) == BC_UNIVERSAL);
-	assert(BER_TYPE_CONSTRUCTED(obj->type));
-	new_type = BER_TYPE(obj->type);
+	assert(obj->type->tag_class == BC_UNIVERSAL);
+	assert(obj->type->tag_constructed);
+	assert(!obj->type->tag_encoded);
+	type = obj->type->tag_short;
 
 	DER_FOREACH_CHILD(child, obj) {
 		/* Sanity check and coalesce our children. */
-		if (BER_FULL_TYPE(child->type) != new_type) {
+		if (child->type->tag_class != BC_UNIVERSAL ||
+		    child->type->tag_short != obj->type->tag_short) {
 			libder_set_error(ctx, LDE_COALESCE_BADCHILD);
 			return (false);
 		}
@@ -441,7 +465,7 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 		 * We strip the lead byte off of every element, and add it back
 		 * in pre-allocation.
 		 */
-		if (new_type == BT_BITSTRING && child->disk_size > 1)
+		if (type == BT_BITSTRING && child->disk_size > 1)
 			child->disk_size--;
 
 		new_size += child->disk_size;
@@ -451,7 +475,7 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	}
 
 	if (new_size != 0 && need_payload) {
-		if (new_type == BT_BITSTRING)
+		if (type == BT_BITSTRING)
 			new_size++;
 		coalesced_data = malloc(new_size);
 		if (coalesced_data == NULL) {
@@ -481,7 +505,7 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 			 * contains the number of unused bits at the end.  We
 			 * need to trim that off when concatenating bit strings
 			 */
-			if (new_type == BT_BITSTRING) {
+			if (type == BT_BITSTRING) {
 				offset += libder_merge_bitstrings(coalesced_data,
 				    offset, new_size, child);
 			} else {
@@ -511,7 +535,7 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 	free(obj->payload);
 	obj->length = offset;
 	obj->payload = coalesced_data;
-	obj->type = new_type;
+	obj->type->tag_constructed = false;
 
 	return (true);
 }
@@ -598,6 +622,77 @@ libder_obj_normalize_integer(struct libder_object *obj)
 	return (true);
 }
 
+static int
+libder_obj_tag_compare(const struct libder_tag *lhs, const struct libder_tag *rhs)
+{
+	const uint8_t *lbits, *rbits;
+	size_t delta, end, lsz, rsz;
+	uint8_t lbyte, rbyte;
+
+	/* Highest bits: tag class, libder_ber_class has the same bit ordering. */
+	if (lhs->tag_class < rhs->tag_class)
+		return (-1);
+	if (lhs->tag_class > rhs->tag_class)
+		return (1);
+
+	/* Next bit: constructed vs. primitive */
+	if (!lhs->tag_constructed && rhs->tag_constructed)
+		return (-1);
+	if (lhs->tag_constructed && rhs->tag_constructed)
+		return (1);
+
+	/*
+	 * Finally: tag data; we can use the size as a first-order heuristic
+	 * because we store tags in the shortest possible representation.
+	 */
+	if (lhs->tag_size < rhs->tag_size)
+		return (-1);
+	else if (lhs->tag_size > rhs->tag_size)
+		return (1);
+
+	if (!lhs->tag_encoded) {
+		lbits = (const void *)&lhs->tag_short;
+		lsz = sizeof(uint64_t);
+	} else {
+		lbits = lhs->tag_long;
+		lsz = lhs->tag_size;
+	}
+
+	if (!rhs->tag_encoded) {
+		rbits = (const void *)&rhs->tag_short;
+		rsz = sizeof(uint64_t);
+	} else {
+		rbits = rhs->tag_long;
+		rsz = rhs->tag_size;
+	}
+
+	delta = 0;
+	end = MAX(lsz, rsz);
+	if (lsz > rsz)
+		delta = lsz - rsz;
+	else if (lsz < rsz)
+		delta = rsz - lsz;
+	for (size_t i = 0; i < end; i++) {
+		/* Zero-extend the short one the difference. */
+		if (lsz < rsz && i < delta)
+			lbyte = 0;
+		else
+			lbyte = lbits[i - delta];
+
+		if (lsz > rsz && i < delta)
+			rbyte = 0;
+		else
+			rbyte = rbits[i - delta];
+
+		if (lbyte < rbyte)
+			return (-1);
+		else if (lbyte > rbyte)
+			return (-1);
+	}
+
+	return (0);
+}
+
 /*
  * Similar to strcmp(), returns -1, 0, or 1.
  */
@@ -605,12 +700,12 @@ static int
 libder_obj_compare(const struct libder_object *lhs, const struct libder_object *rhs)
 {
 	size_t end;
+	int cmp;
 	uint8_t lbyte, rbyte;
 
-	if (lhs->type < rhs->type)
-		return (-1);
-	if (lhs->type > rhs->type)
-		return (1);
+	cmp = libder_obj_tag_compare(lhs->type, rhs->type);
+	if (cmp != 0)
+		return (cmp);
 
 	/*
 	 * We'll compare up to the longer of the two; the shorter payload is
@@ -690,7 +785,7 @@ libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 	uint8_t *payload = obj->payload;
 	size_t length = obj->length;
 
-	if (BER_TYPE_CONSTRUCTED(obj->type)) {
+	if (obj->type->tag_constructed) {
 		/*
 		 * For constructed types, we'll see if we can coalesce their
 		 * children into them, then we'll proceed with whatever normalization
@@ -705,7 +800,7 @@ libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 		 * any further, but the now-primitive coalesced types still need to be
 		 * normalized.
 		 */
-		if (BER_TYPE_CONSTRUCTED(obj->type)) {
+		if (obj->type->tag_constructed) {
 			struct libder_object *child;
 
 			DER_FOREACH_CHILD(child, obj) {
@@ -714,7 +809,7 @@ libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 			}
 
 			/* Sets must be sorted. */
-			if (obj->type != BT_SET)
+			if (obj->type->tag_short != BT_SET)
 				return (true);
 
 			return (libder_obj_normalize_set(obj, ctx));
@@ -722,7 +817,7 @@ libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 	}
 
 	/* We only have normalization rules for universal types. */
-	if (BER_TYPE_CLASS(obj->type) != BC_UNIVERSAL)
+	if (obj->type->tag_class != BC_UNIVERSAL || obj->type->tag_encoded)
 		return (true);
 
 	if (!libder_normalizing_type(ctx, obj->type))
@@ -732,7 +827,7 @@ libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 	 * We are clear to normalize this object, check for some easy cases that
 	 * don't need normalization.
 	 */
-	switch (obj->type) {
+	switch (libder_type_simple(obj->type)) {
 	case BT_BITSTRING:
 	case BT_BOOLEAN:
 	case BT_INTEGER:
@@ -757,7 +852,7 @@ libder_obj_normalize(struct libder_object *obj, struct libder_ctx *ctx)
 		break;
 	}
 
-	switch (obj->type) {
+	switch (libder_type_simple(obj->type)) {
 	case BT_BITSTRING:
 		return (libder_obj_normalize_bitstring(obj));
 	case BT_BOOLEAN:

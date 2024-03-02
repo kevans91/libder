@@ -29,6 +29,7 @@ static const struct libder_error_desc {
 	DESCRIBE(TRUNCVARLEN,	"Variable length object truncated"),
 	DESCRIBE(COALESCE_BADCHILD,	"Bad child encountered when coalescing"),
 	DESCRIBE(BADOBJECT,	"Payload not valid for object type"),
+	DESCRIBE(BADLONGTAG,	"Long tag encoded incorrectly"),
 };
 
 const char *

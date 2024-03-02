@@ -308,22 +308,107 @@ libder_stream_refill(struct libder_stream *stream, size_t req)
 	return (&stream->stream_buf[offset]);
 }
 
+#define	BER_TYPE_LONG_BATCH	0x04
+
+static bool
+der_read_structure_tag(struct libder_ctx *ctx, struct libder_stream *stream,
+    struct libder_tag *type)
+{
+	const uint8_t *buf;
+	uint8_t *longbuf = NULL, val;
+	size_t longbufsz = 0, offset = 0, received = 0;
+
+	for (;;) {
+		/*
+		 * We have to refill one byte at a time to avoid overreading
+		 * into the structure size.
+		 */
+		if ((buf = libder_stream_refill(stream, 1)) == NULL) {
+			free(longbuf);
+			if (!libder_stream_eof(stream))
+				libder_set_error(ctx, LDE_SHORTHDR);
+			return (false);
+		}
+
+		received++;
+		val = buf[0];
+		if (received == 1) {
+			/* Deconstruct the class and p/c */
+			type->tag_class = BER_TYPE_CLASS(val);
+			type->tag_constructed = BER_TYPE_CONSTRUCTED(val);
+
+			/* Long form, or short form? */
+			if (BER_TYPE(val) != BER_TYPE_LONG_MASK) {
+				type->tag_short = BER_TYPE(val);
+				type->tag_size = sizeof(uint8_t);
+				type->tag_encoded = false;
+
+				return (true);
+			}
+
+			/*
+			 * No content from this one, grab another byte.
+			 */
+			type->tag_encoded = true;
+			continue;
+		}
+
+		if (offset == 0 && (val & ~0x80) == 0) {
+			/* Bogus! Shouldn't happen. */
+			libder_set_error(ctx, LDE_BADLONGTAG);
+			return (false);
+		}
+
+		/* XXX Impose a max size? Perhaps configurable. */
+		if (offset == longbufsz) {
+			uint8_t *next;
+			size_t nextsz;
+
+			nextsz = longbufsz + BER_TYPE_LONG_BATCH;
+			next = realloc(longbuf, nextsz * sizeof(*longbuf));
+			if (next == NULL) {
+				free(longbuf);
+				libder_set_error(ctx, LDE_NOMEM);
+				return (false);
+			}
+
+			longbuf = next;
+			longbufsz = nextsz;
+		}
+
+		longbuf[offset++] = val;
+
+		if ((val & 0x80) == 0)
+			break;
+	}
+
+	type->tag_long = longbuf;
+	type->tag_size = offset;
+
+	libder_normalize_type(ctx, type);
+
+	return (true);
+}
+
 static int
 der_read_structure(struct libder_ctx *ctx, struct libder_stream *stream,
-    int *type, struct libder_payload *payload, bool *varlen)
+    struct libder_tag *type, struct libder_payload *payload, bool *varlen)
 {
 	const uint8_t *buf;
 	size_t rsz, offset, resid;
 	uint8_t bsz;
 
 	rsz = 0;
-	if ((buf = libder_stream_refill(stream, 2)) == NULL) {
-		if (!libder_stream_eof(stream))
-			libder_set_error(ctx, LDE_SHORTHDR);
+	if (!der_read_structure_tag(ctx, stream, type)) {
 		return (-1);
 	}
 
-	*type = *buf++;
+	if ((buf = libder_stream_refill(stream, 1)) == NULL) {
+		if (!libder_stream_eof(stream))
+			libder_set_error(ctx, LDE_SHORTHDR);
+		goto failed;
+	}
+
 	bsz = *buf++;
 
 #define	LENBIT_LONG	0x80
@@ -335,10 +420,10 @@ der_read_structure(struct libder_ctx *ctx, struct libder_stream *stream,
 			/* Long */
 			if (bsz > sizeof(rsz)) {
 				libder_set_error(ctx, LDE_LONGLEN);
-				return (-1);	/* Only support up to long bytes. */
+				goto failed;	/* Only support up to long bytes. */
 			} else if ((buf = libder_stream_refill(stream, bsz)) == NULL) {
 				libder_set_error(ctx, LDE_SHORTHDR);
-				return (-1);
+				goto failed;
 			}
 
 			rsz = 0;
@@ -374,7 +459,7 @@ der_read_structure(struct libder_ctx *ctx, struct libder_stream *stream,
 			payload->payload_heap = false;
 			if (payload->payload_data == NULL) {
 				libder_set_error(ctx, LDE_SHORTDATA);
-				return (-1);
+				goto failed;
 			}
 		} else {
 			uint8_t *payload_data;
@@ -392,7 +477,7 @@ der_read_structure(struct libder_ctx *ctx, struct libder_stream *stream,
 					free(payload_data);
 
 					libder_set_error(ctx, LDE_SHORTDATA);
-					return (-1);
+					goto failed;
 				}
 
 				next_data = realloc(payload_data, offset + req);
@@ -400,7 +485,7 @@ der_read_structure(struct libder_ctx *ctx, struct libder_stream *stream,
 					free(payload_data);
 
 					libder_set_error(ctx, LDE_NOMEM);
-					return (-1);
+					goto failed;
 				}
 
 				payload_data = next_data;
@@ -420,6 +505,10 @@ der_read_structure(struct libder_ctx *ctx, struct libder_stream *stream,
 
 	libder_stream_commit(stream);
 	return (0);
+
+failed:
+	libder_type_release(type);
+	return (-1);
 }
 
 static struct libder_object *
@@ -428,8 +517,8 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 	struct libder_payload payload = { 0 };
 	struct libder_object *child, **next, *obj;
 	struct libder_stream memstream, *childstream;
+	struct libder_tag type;
 	int error;
-	uint32_t type;
 	bool varlen;
 
 	/* Peel off one structure. */
@@ -440,13 +529,13 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 		return (NULL);	/* Error already set, if needed. */
 	}
 
-	if (!libder_is_valid_obj(type, payload.payload_data,
+	if (!libder_is_valid_obj(&type, payload.payload_data,
 	    payload.payload_size, varlen)) {
 		libder_set_error(ctx, LDE_BADOBJECT);
 		goto out;
 	}
 
-	if (!BER_TYPE_CONSTRUCTED(type)) {
+	if (!type.tag_constructed) {
 		uint8_t *payload_data;
 		size_t payloadsz;
 
@@ -465,10 +554,10 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 		payload_data = payload_move(&payload, &payloadsz);
 		if (payload_data == NULL) {
 			libder_set_error(ctx, LDE_NOMEM);
-			return (NULL);
+			goto out;
 		}
 
-		obj = libder_obj_alloc_internal(type, payloadsz, payload_data);
+		obj = libder_obj_alloc_internal(&type, payloadsz, payload_data);
 		if (obj == NULL) {
 			free(payload_data);
 			libder_set_error(ctx, LDE_NOMEM);
@@ -477,7 +566,7 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 		return (obj);
 	}
 
-	obj = libder_obj_alloc_internal(type, 0, NULL);
+	obj = libder_obj_alloc_internal(&type, 0, NULL);
 	if (obj == NULL) {
 		libder_set_error(ctx, LDE_NOMEM);
 		goto out;
@@ -513,7 +602,8 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 			break;
 		}
 
-		if (varlen && child->type == BT_RESERVED && child->length == 0) {
+		if (varlen && libder_type_is(child->type, BT_RESERVED) &&
+		    child->length == 0) {
 			/*
 			 * This child is just a marker; free it, don't leak it,
 			 * and stop here.
@@ -536,6 +626,8 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 	}
 
 out:
+	if (obj == NULL)
+		libder_type_release(&type);
 	payload_free(&payload);
 	return (obj);
 }

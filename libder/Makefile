@@ -7,6 +7,7 @@ SRCS=	libder.c \
 	libder_error.c \
 	libder_obj.c \
 	libder_read.c \
+	libder_type.c \
 	libder_write.c
 
 SANITIZERS=	address

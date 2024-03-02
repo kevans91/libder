@@ -20,14 +20,38 @@ struct memory_write_data {
 typedef bool (write_buffer_t)(void *, const uint8_t *, size_t);
 
 static bool
+libder_write_object_tag(struct libder_ctx *ctx, const struct libder_object *obj,
+    write_buffer_t *write_buffer, void *cookie)
+{
+	const struct libder_tag *type = obj->type;
+	uint8_t value;
+
+	if (!type->tag_encoded) {
+		value = libder_type_simple(type);
+		return (write_buffer(cookie, &value, sizeof(value)));
+	}
+
+	/* Write out the tag info first. */
+	value = BER_TYPE_LONG_MASK;
+	value |= type->tag_class << 6;
+	if (type->tag_constructed)
+		value |= BER_TYPE_CONSTRUCTED_MASK;
+
+	if (!write_buffer(cookie, &value, sizeof(value)))
+		return (false);
+
+	/* Write out the encoded tag next. */
+	return (write_buffer(cookie, type->tag_long, type->tag_size));
+}
+
+static bool
 libder_write_object_header(struct libder_ctx *ctx, struct libder_object *obj,
     write_buffer_t *write_buffer, void *cookie)
 {
 	size_t size;
 	uint8_t sizelen, value;
 
-	value = obj->type;
-	if (!write_buffer(cookie, &value, sizeof(value)))
+	if (!libder_write_object_tag(ctx, obj, write_buffer, cookie))
 		return (false);
 
 	size = obj->disk_size;
@@ -112,9 +136,7 @@ libder_write_object(struct libder_ctx *ctx, struct libder_object *obj,
 	if (obj->children == NULL)
 		return (libder_write_object_payload(ctx, obj, write_buffer, cookie));
 
-	assert(BER_TYPE_CONSTRUCTED(obj->type));
-
-	/* XXX Do we need to sort? */
+	assert(obj->type->tag_constructed);
 
 	/* Recurse on each child. */
 	DER_FOREACH_CHILD(child, obj) {

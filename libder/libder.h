@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-enum libder_ber_type_class {
+enum libder_ber_class {
 	BC_UNIVERSAL = 0,
 	BC_APPLICATION = 1,
 	BC_CONTEXT = 2,
@@ -83,9 +83,11 @@ enum libder_error {
 	LDE_TRUNCVARLEN,	/* Variable length object truncated */
 	LDE_COALESCE_BADCHILD,	/* Bad child encountered when coalescing */
 	LDE_BADOBJECT,		/* Payload not valid for object type */
+	LDE_BADLONGTAG,		/* Long tag encoded incorrectly */
 };
 
 typedef struct libder_ctx	*libder_ctx;
+typedef struct libder_tag	*libder_tag;
 typedef struct libder_object	*libder_object;
 
 /*
@@ -99,12 +101,21 @@ typedef struct libder_object	*libder_object;
 /* Normalize constructed types that should be coalesced (e.g., strings, time). */
 #define	LIBDER_NORMALIZE_CONSTRUCTED	0x0000000000000001ULL
 
+/*
+ * Normalize tags on read.  This is mostly a measure to ensure that
+ * normalization on write doesn't get thwarted; there's no reason anybody should
+ * be encoding low tags with the long form, but the spec doesn't appear to
+ * forbid it.
+ */
+#define	LIBDER_NORMALIZE_TAGS		0x0000000000000002ULL
+
 /* Universal types (reserved) */
 #define	LIBDER_NORMALIZE_TYPE_MASK	0xffffffff00000000ULL
 
 /* All valid bits. */
 #define	LIBDER_NORMALIZE_ALL		\
-    (LIBDER_NORMALIZE_TYPE_MASK | LIBDER_NORMALIZE_CONSTRUCTED)
+    (LIBDER_NORMALIZE_TYPE_MASK | LIBDER_NORMALIZE_CONSTRUCTED |	\
+    LIBDER_NORMALIZE_TAGS)
 
 libder_ctx		 libder_open(void);
 const char		*libder_get_error(libder_ctx);
@@ -132,15 +143,18 @@ void			 libder_close(libder_ctx);
 	    (var) && ((tvar) = DER_NEXT((var)), 1);	\
 	    (var) = (tvar))
 
-libder_object	 libder_obj_alloc(libder_ctx, int, size_t, const uint8_t *);
+libder_object	 libder_obj_alloc(libder_ctx, libder_tag, size_t, const uint8_t *);
 void		 libder_set_verbose(libder_ctx, int);
 void		 libder_obj_free(libder_object);
 
 libder_object	 libder_obj_child(const struct libder_object *, size_t);
 libder_object	 libder_obj_children(const struct libder_object *);
 libder_object	 libder_obj_next(const struct libder_object *);
-int		 libder_obj_type(const struct libder_object *);
+libder_tag	 libder_obj_type(struct libder_object *);
 const uint8_t	*libder_obj_data(const struct libder_object *, size_t *);
 
 /* Debugging aide -- probably shouldn't use. */
 void		 libder_obj_dump(const struct libder_object *, FILE *);
+
+#define	libder_type_simple	libder_type_simple_abi
+uint8_t		libder_type_simple(const struct libder_tag *);
