@@ -275,10 +275,11 @@ libder_obj_dump_internal(const struct libder_object *obj, FILE *fp, int lvl)
 
 	/* Primitive, goofy, but functional. */
 	if (spacer[0] == '\0')
-		memset(spacer, ' ', sizeof(spacer));
+		memset(spacer, '\t', sizeof(spacer));
 
-	if (lvl == sizeof(spacer) / 2) {
-		fprintf(fp, "%.*s...\n", lvl * 2, spacer);
+	if (lvl >= (int)sizeof(spacer)) {
+		/* Too large, truncate the display. */
+		fprintf(fp, "%.*s...\n", (int)sizeof(spacer), spacer);
 		return;
 	}
 
@@ -287,24 +288,48 @@ libder_obj_dump_internal(const struct libder_object *obj, FILE *fp, int lvl)
 	 * into a buffer if it's longer than a uint64_t.
 	 */
 	if (obj->children == NULL) {
+		size_t col = lvl * 8;
+
 		if (!obj->type->tag_encoded) {
-			fprintf(fp, "%.*sOBJECT[type=%x, size=%zx]\n", lvl * 2, spacer,
-			    libder_type_simple(obj->type), obj->length);
+			col += fprintf(fp, "%.*sOBJECT[type=%x, size=%zx]%s",
+			    lvl, spacer, libder_type_simple(obj->type),
+			    obj->length, obj->length != 0 ? ": " : "");
 		} else {
 			/* XXX */
-			fprintf(fp, "%.*sOBJECT[type={...}, size=%zx]\n", lvl * 2, spacer,
-			    obj->length);
+			col += fprintf(fp, "%.*sOBJECT[type={...}, size=%zx]%s",
+			    lvl, spacer, obj->length, obj->length != 0 ? ": " : "");
 		}
+
+		if (obj->length != 0) {
+			uint8_t printb;
+
+#define	LIBDER_CONTENTS_WRAP	80
+			for (size_t i = 0; i < obj->length; i++) {
+				if (col + 3 >= LIBDER_CONTENTS_WRAP) {
+					fprintf(fp, "\n%.*s    ", lvl, spacer);
+					col = (lvl * 8) + 4;
+				}
+
+				if (obj->payload == NULL)
+					printb = 0;
+				else
+					printb = obj->payload[i];
+
+				col += fprintf(fp, "%.02x ", printb);
+			}
+		}
+
+		fprintf(fp, "\n");
 
 		return;
 	}
 
 	/* Ditto above for tag_short */
 	if (!obj->type->tag_encoded) {
-		fprintf(fp, "%.*sOBJECT[type=%x]\n", lvl * 2, spacer,
+		fprintf(fp, "%.*sOBJECT[type=%x]\n", lvl, spacer,
 		    libder_type_simple(obj->type));
 	} else {
-		fprintf(fp, "%.*sOBJECT[type={...}]\n", lvl * 2, spacer);
+		fprintf(fp, "%.*sOBJECT[type={...}]\n", lvl, spacer);
 	}
 	DER_FOREACH_CHILD(child, obj)
 		libder_obj_dump_internal(child, fp, lvl + 1);
