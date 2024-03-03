@@ -165,7 +165,8 @@ bool		 libder_obj_append(libder_object, libder_object);
 libder_object	 libder_obj_child(const struct libder_object *, size_t);
 libder_object	 libder_obj_children(const struct libder_object *);
 libder_object	 libder_obj_next(const struct libder_object *);
-libder_tag	 libder_obj_type(struct libder_object *);
+libder_tag	 libder_obj_type(const struct libder_object *);
+uint8_t		 libder_obj_type_simple(const struct libder_object *);
 const uint8_t	*libder_obj_data(const struct libder_object *, size_t *);
 
 /* Debugging aide -- probably shouldn't use. */

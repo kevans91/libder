@@ -307,10 +307,26 @@ libder_obj_next(const struct libder_object *obj)
 }
 
 libder_tag
-libder_obj_type(struct libder_object *obj)
+libder_obj_type(const struct libder_object *obj)
 {
 
 	return (obj->type);
+}
+
+uint8_t
+libder_obj_type_simple(const struct libder_object *obj)
+{
+	libder_tag type = obj->type;
+	uint8_t simple = type->tag_class << 6;
+
+	if (type->tag_constructed)
+		simple |= BER_TYPE_CONSTRUCTED_MASK;
+
+	if (type->tag_encoded)
+		simple |= 0x1f;	/* Encode the "long tag" tag. */
+	else
+		simple |= type->tag_short;
+	return (simple);
 }
 
 const uint8_t *

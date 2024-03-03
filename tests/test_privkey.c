@@ -39,26 +39,21 @@ test_interface(libder_object root)
 	size_t datasz;
 	libder_object keystring, oid;
 
-	libder_tag objtype;
-
 	/* Grab the oid first. */
 	oid = libder_obj_child(root, 2);
 	assert(oid != NULL);	/* Actually just the container... */
-	assert(libder_type_simple(libder_obj_type(oid)) == 0xa0);
+	assert(libder_obj_type_simple(oid) == 0xa0);
 
 	oid = libder_obj_child(oid, 0);
 	assert(oid != NULL);	/* Now *that*'s an OID. */
-	assert(libder_type_simple(libder_obj_type(oid)) == BT_OID);
+	assert(libder_obj_type_simple(oid) == BT_OID);
 	data = libder_obj_data(oid, &datasz);
 	assert(datasz == sizeof(oid_secp112r1));
 	assert(memcmp(oid_secp112r1, data, datasz) == 0);
 
 	keystring = libder_obj_child(root, 1);
 	assert(keystring != NULL);
-
-	objtype = libder_obj_type(keystring);
-	assert(objtype != NULL);
-	assert(libder_type_simple(objtype) == BT_OCTETSTRING);
+	assert(libder_obj_type_simple(keystring) == BT_OCTETSTRING);
 
 	data = libder_obj_data(keystring, &datasz);
 	assert(datasz == sizeof(privdata));

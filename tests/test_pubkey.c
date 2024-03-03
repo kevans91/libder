@@ -34,13 +34,10 @@ test_interface(libder_object root)
 	const uint8_t *data;
 	size_t datasz;
 	libder_object keystring;
-	libder_tag objtype;
 
 	keystring = libder_obj_child(root, 1);
 	assert(keystring != NULL);
-	objtype = libder_obj_type(keystring);
-	assert(objtype != NULL);
-	assert(libder_type_simple(objtype) == BT_BITSTRING);
+	assert(libder_obj_type_simple(keystring) == BT_BITSTRING);
 
 	data = libder_obj_data(keystring, &datasz);
 	assert(datasz == sizeof(pubdata));
