@@ -140,6 +140,7 @@ libder_obj_alloc_internal(struct libder_tag *type, size_t length,
 			return (NULL);
 		}
 
+		/* XXX Deep copy the buffer instead? */
 		memcpy(obj->type, type, sizeof(*type));
 	}
 
@@ -250,6 +251,7 @@ libder_obj_free(struct libder_object *obj)
 	free(obj);
 }
 
+/* XXX Should link and unlink */
 bool
 libder_obj_append(struct libder_object *parent, struct libder_object *child)
 {

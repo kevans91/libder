@@ -120,6 +120,7 @@ typedef struct libder_object	*libder_object;
 
 /* Universal types (reserved) */
 #define	LIBDER_NORMALIZE_TYPE_MASK	0xffffffff00000000ULL
+#define	LIBDER_NORMALIZE_TYPE_FLAG(val)	((1ULL << val) << 32ULL)
 
 /* All valid bits. */
 #define	LIBDER_NORMALIZE_ALL		\
@@ -127,6 +128,7 @@ typedef struct libder_object	*libder_object;
     LIBDER_NORMALIZE_TAGS)
 
 libder_ctx		 libder_open(void);
+void			 libder_close(libder_ctx);
 const char		*libder_get_error(libder_ctx);
 bool			 libder_has_error(libder_ctx);
 uint64_t		 libder_get_normalize(libder_ctx);
@@ -135,14 +137,13 @@ bool			 libder_get_strict(libder_ctx);
 bool			 libder_set_strict(libder_ctx, bool);
 int			 libder_get_verbose(libder_ctx);
 int			 libder_set_verbose(libder_ctx, int);
+
 libder_object		 libder_read(libder_ctx, const uint8_t *, size_t *);
 libder_object		 libder_read_fd(libder_ctx, int, size_t *);
 libder_object		 libder_read_file(libder_ctx, FILE *, size_t *);
 
 uint8_t			*libder_write(libder_ctx, libder_object, uint8_t *,
 			    size_t *);
-
-void			 libder_close(libder_ctx);
 
 #define	DER_CHILDREN(obj)	libder_obj_children(obj)
 #define	DER_NEXT(obj)		libder_obj_next(obj)
@@ -172,9 +173,8 @@ const uint8_t	*libder_obj_data(const struct libder_object *, size_t *);
 /* Debugging aide -- probably shouldn't use. */
 void		 libder_obj_dump(const struct libder_object *, FILE *);
 
-#define	libder_type_simple	libder_type_simple_abi
-uint8_t		 libder_type_simple(const struct libder_tag *);
-
 libder_tag	 libder_type_alloc_simple(libder_ctx, uint8_t);
 libder_tag	 libder_type_dup(struct libder_ctx *, const struct libder_tag *);
 void		 libder_type_free(struct libder_tag *);
+#define	libder_type_simple	libder_type_simple_abi
+uint8_t		 libder_type_simple(const struct libder_tag *);

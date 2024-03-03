@@ -63,11 +63,15 @@ struct libder_object {
 static inline bool
 libder_normalizing_type(const struct libder_ctx *ctx, const struct libder_tag *type)
 {
-	assert(!type->tag_constructed);
-	assert(type->tag_class == BC_UNIVERSAL);
-	assert(type->tag_size <= sizeof(type->tag_short));
+	uint8_t tagval;
 
-	return ((ctx->normalize & ((1ULL << type->tag_short) << 32ULL)) != 0);
+	assert(!type->tag_constructed);
+	assert(!type->tag_encoded);
+	assert(type->tag_class == BC_UNIVERSAL);
+	assert(tagval < 0x1f);
+
+	tagval = type->tag_short;
+	return ((ctx->normalize & LIBDER_NORMALIZE_TYPE_FLAG(tagval)) != 0);
 }
 
 /* All of the lower bits set. */

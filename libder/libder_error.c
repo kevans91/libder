@@ -67,10 +67,10 @@ libder_set_error(struct libder_ctx *ctx, int error, const char *file, int line)
 	ctx->error = error;
 
 	if (ctx->verbose >= 2) {
-		fprintf(stderr, "%s: [%s:%d]: %s (%d)\n",
+		fprintf(stderr, "%s: [%s:%d]: %s (error %d)\n",
 		    __func__, file, line, libder_get_error(ctx), error);
 	} else if (ctx->verbose >= 1) {
-		fprintf(stderr, "%s: %s (%d)\n", __func__,
+		fprintf(stderr, "%s: %s (error %d)\n", __func__,
 		    libder_get_error(ctx), error);
 	}
 }
