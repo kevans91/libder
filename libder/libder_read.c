@@ -638,6 +638,7 @@ libder_read_object(struct libder_ctx *ctx, struct libder_stream *stream)
 		}
 
 		obj->nchildren++;
+		child->parent = obj;
 		*next = child;
 		next = &child->next;
 	}

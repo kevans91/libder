@@ -152,7 +152,7 @@ libder_obj_alloc_internal(struct libder_tag *type, size_t length,
 
 	obj->length = length;
 	obj->payload = payload;
-	obj->children = obj->next = NULL;
+	obj->children = obj->next = obj->parent = NULL;
 	obj->nchildren = 0;
 
 	return (obj);
@@ -251,18 +251,46 @@ libder_obj_free(struct libder_object *obj)
 	free(obj);
 }
 
-/* XXX Should link and unlink */
+static void
+libder_obj_unlink(struct libder_object *obj)
+{
+	struct libder_object *child, *parent, *prev;
+
+	parent = obj->parent;
+	if (parent == NULL)
+		return;
+
+	prev = NULL;
+	assert(parent->nchildren > 0);
+	DER_FOREACH_CHILD(child, parent) {
+		if (child == obj) {
+			if (prev == NULL)
+				parent->children = child->next;
+			else
+				prev->next = child->next;
+			parent->nchildren--;
+			child->parent = NULL;
+			return;
+		}
+
+		prev = child;
+	}
+
+	assert(0 && "Internal inconsistency: parent set, but child not found");
+}
+
 bool
 libder_obj_append(struct libder_object *parent, struct libder_object *child)
 {
 	struct libder_object *end, *walker;
 
-	if (!parent->type->tag_constructed) {
-		__builtin_trap();
+	if (!parent->type->tag_constructed)
 		return (false);
-	}
 
 	/* XXX Type check */
+
+	if (child->parent != NULL)
+		libder_obj_unlink(child);
 
 	if (parent->nchildren == 0) {
 		parent->children = child;
@@ -278,6 +306,7 @@ libder_obj_append(struct libder_object *parent, struct libder_object *child)
 	assert(end != NULL);
 	end->next = child;
 	parent->nchildren++;
+	child->parent = parent;
 	return (true);
 }
 

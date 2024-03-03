@@ -52,6 +52,7 @@ struct libder_object {
 	size_t			 disk_size;
 	uint8_t			*payload;	/* NULL for sequences */
 	struct libder_object	*children;
+	struct libder_object	*parent;
 	struct libder_object	*next;
 };
 
