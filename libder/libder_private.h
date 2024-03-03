@@ -69,7 +69,7 @@ libder_normalizing_type(const struct libder_ctx *ctx, const struct libder_tag *t
 	assert(!type->tag_constructed);
 	assert(!type->tag_encoded);
 	assert(type->tag_class == BC_UNIVERSAL);
-	assert(tagval < 0x1f);
+	assert(type->tag_short < 0x1f);
 
 	tagval = type->tag_short;
 	return ((ctx->normalize & LIBDER_NORMALIZE_TYPE_FLAG(tagval)) != 0);
@@ -120,8 +120,8 @@ void	 libder_set_error(struct libder_ctx *, int, const char *, int);
 #define	libder_set_error(ctx, error)	\
 	libder_set_error((ctx), (error), __FILE__, __LINE__)
 
-struct libder_object	*libder_obj_alloc_internal(struct libder_tag *,
-			    size_t, uint8_t *, uint32_t);
+struct libder_object	*libder_obj_alloc_internal(struct libder_ctx *,
+			    struct libder_tag *, uint8_t *, size_t, uint32_t);
 #define	LDO_OWNTAG	0x0001	/* Object owns passed in tag */
 
 size_t			 libder_size_length(size_t);

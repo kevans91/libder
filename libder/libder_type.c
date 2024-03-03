@@ -40,6 +40,29 @@ libder_type_dup(struct libder_ctx *ctx, const struct libder_tag *dtype)
 	}
 
 	memcpy(type, dtype, sizeof(*dtype));
+
+	if (type->tag_encoded) {
+		uint8_t *tdata;
+
+		/* Deep copy the tag data. */
+		tdata = malloc(type->tag_size);
+		if (tdata == NULL) {
+			libder_set_error(ctx, LDE_NOMEM);
+
+			/*
+			 * Don't accidentally free the caller's buffer; it may
+			 * be an external user of the API.
+			 */
+			type->tag_long = NULL;
+			type->tag_size = 0;
+			libder_type_free(type);
+			return (NULL);
+		}
+
+		memcpy(tdata, dtype->tag_long, dtype->tag_size);
+		type->tag_long = tdata;
+	}
+
 	return (type);
 }
 
@@ -116,7 +139,7 @@ libder_normalize_type(struct libder_ctx *ctx, struct libder_tag *type)
 	 * We might be able to strip it down to a unencoded tag_short, if only
 	 * the lower 5 bits are in use.
 	 */
-	if (type->tag_size != 1 || (type->tag_long[0] & ~0x1f) != 0)
+	if (type->tag_size != 1 || (type->tag_long[0] & ~0x1e) != 0)
 		return;
 
 	tagval = type->tag_long[0];

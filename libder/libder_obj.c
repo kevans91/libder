@@ -72,7 +72,7 @@ libder_obj_alloc(struct libder_ctx *ctx, struct libder_tag *type,
 
 	payload = libder_obj_alloc_copy_payload(ctx, payload_in, length);
 
-	obj = libder_obj_alloc_internal(type, length, payload, 0);
+	obj = libder_obj_alloc_internal(ctx, type, payload, length, 0);
 	if (obj == NULL) {
 		free(payload);
 		libder_set_error(ctx, LDE_NOMEM);
@@ -100,7 +100,7 @@ libder_obj_alloc_simple(struct libder_ctx *ctx, uint8_t stype,
 
 	payload = libder_obj_alloc_copy_payload(ctx, payload_in, length);
 
-	obj = libder_obj_alloc_internal(type, length, payload, LDO_OWNTAG);
+	obj = libder_obj_alloc_internal(ctx, type, payload, length, LDO_OWNTAG);
 	if (obj == NULL) {
 		free(payload);
 		libder_type_free(type);
@@ -115,8 +115,8 @@ libder_obj_alloc_simple(struct libder_ctx *ctx, uint8_t stype,
  * the payload on success.
  */
 LIBDER_PRIVATE struct libder_object *
-libder_obj_alloc_internal(struct libder_tag *type, size_t length,
-    uint8_t *payload, uint32_t flags)
+libder_obj_alloc_internal(struct libder_ctx *ctx, struct libder_tag *type,
+    uint8_t *payload, size_t length, uint32_t flags)
 {
 	struct libder_object *obj;
 
@@ -134,20 +134,15 @@ libder_obj_alloc_internal(struct libder_tag *type, size_t length,
 	if ((flags & LDO_OWNTAG) != 0) {
 		obj->type = type;
 	} else {
-		obj->type = libder_type_alloc();
+		/*
+		 * Deep copies the tag data, so that the caller can predict what
+		 * it can do with the buffer.
+		 */
+		obj->type = libder_type_dup(ctx, type);
 		if (obj->type == NULL) {
 			free(obj);
 			return (NULL);
 		}
-
-		/* XXX Deep copy the buffer instead? */
-		memcpy(obj->type, type, sizeof(*type));
-	}
-
-	/* Invalidate the tag if it's an encoded one -- we own it now. */
-	if (type->tag_encoded) {
-		type->tag_long = NULL;
-		type->tag_encoded = false;
 	}
 
 	obj->length = length;
