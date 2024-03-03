@@ -20,8 +20,8 @@ struct memory_write_data {
 typedef bool (write_buffer_t)(void *, const uint8_t *, size_t);
 
 static bool
-libder_write_object_tag(struct libder_ctx *ctx, const struct libder_object *obj,
-    write_buffer_t *write_buffer, void *cookie)
+libder_write_object_tag(struct libder_ctx *ctx __unused,
+    const struct libder_object *obj, write_buffer_t *write_buffer, void *cookie)
 {
 	const struct libder_tag *type = obj->type;
 	uint8_t value;
@@ -88,8 +88,8 @@ libder_write_object_header(struct libder_ctx *ctx, struct libder_object *obj,
 }
 
 static bool
-libder_write_object_payload(struct libder_ctx *ctx, struct libder_object *obj,
-    write_buffer_t *write_buffer, void *cookie)
+libder_write_object_payload(struct libder_ctx *ctx __unused,
+    struct libder_object *obj, write_buffer_t *write_buffer, void *cookie)
 {
 	uint8_t *payload = obj->payload;
 	size_t length = obj->length;

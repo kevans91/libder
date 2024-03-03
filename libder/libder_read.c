@@ -460,7 +460,8 @@ der_read_structure(struct libder_ctx *ctx, struct libder_stream *stream,
 			 * the data -- it'll either strictly read it, or it will
 			 * copy it out to a known-mutable region.
 			 */
-			payload->payload_data = (void *)libder_stream_refill(stream, rsz);
+			payload->payload_data =
+			    __DECONST(void *, libder_stream_refill(stream, rsz));
 			payload->payload_heap = false;
 			if (payload->payload_data == NULL) {
 				libder_set_error(ctx, LDE_SHORTDATA);

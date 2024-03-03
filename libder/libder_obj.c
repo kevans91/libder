@@ -1024,8 +1024,10 @@ libder_obj_compare(const struct libder_object *lhs, const struct libder_object *
 static int
 libder_obj_normalize_set_cmp(const void *lhs_entry, const void *rhs_entry)
 {
-	struct libder_object *lhs = *((struct libder_object **)lhs_entry);
-	struct libder_object *rhs = *((struct libder_object **)rhs_entry);
+	const struct libder_object *lhs =
+	    *__DECONST(const struct libder_object **, lhs_entry);
+	const struct libder_object *rhs =
+	    *__DECONST(const struct libder_object **, rhs_entry);
 
 	return (libder_obj_compare(lhs, rhs));
 }

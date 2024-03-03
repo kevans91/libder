@@ -1,7 +1,7 @@
 
 LIB=	der
 SHLIB_MAJOR=	0
-WARNS?=		3
+WARNS?=		6
 
 SRCS=	libder.c \
 	libder_error.c \
