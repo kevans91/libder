@@ -13,8 +13,8 @@ int
 main(int argc, char *argv[])
 {
 	FILE *fp;
-	libder_ctx ctx;
-	libder_object root;
+	struct libder_ctx *ctx;
+	struct libder_object *root;
 	size_t rootsz;
 	bool first = true;
 

@@ -33,11 +33,11 @@ static const uint8_t pubdata[] = { 0x00, 0x04, 0xae, 0x69, 0x41, 0x0d, 0x9c,
     0x84, 0x34, 0x5c, 0x38, 0x26, 0xd8, 0xcf, 0xbe, 0xf7, 0xdc, 0x8a };
 
 static void
-test_interface(libder_object root)
+test_interface(struct libder_object *root)
 {
 	const uint8_t *data;
 	size_t datasz;
-	libder_object keystring, oid;
+	struct libder_object *keystring, *oid;
 
 	/* Grab the oid first. */
 	oid = libder_obj_child(root, 2);
@@ -62,11 +62,11 @@ test_interface(libder_object root)
 
 /* buf and bufszs are just our reference */
 static void
-test_construction(libder_ctx ctx, const uint8_t *buf, size_t bufsz)
+test_construction(struct libder_ctx *ctx, const uint8_t *buf, size_t bufsz)
 {
 	uint8_t *out;
-	libder_object obj, oidp, pubp, root;
-	libder_object keystring;
+	struct libder_object *obj, *oidp, *pubp, *root;
+	struct libder_object *keystring;
 	size_t outsz;
 	uint8_t data;
 
@@ -120,8 +120,8 @@ int
 main(int argc, char *argv[])
 {
 	struct stat sb;
-	libder_ctx ctx;
-	libder_object root;
+	struct libder_ctx *ctx;
+	struct libder_object *root;
 	uint8_t *buf, *out;
 	size_t bufsz, outsz, rootsz;
 	ssize_t readsz;

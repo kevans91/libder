@@ -29,11 +29,11 @@ static const uint8_t pubdata[] = { 0x00, 0x04, 0xd1, 0x76, 0x20, 0x39, 0xe5, 0x3
     0xf5, 0xcd, 0x55, 0x57, 0x39, 0x6f };
 
 static void
-test_interface(libder_object root)
+test_interface(struct libder_object *root)
 {
 	const uint8_t *data;
 	size_t datasz;
-	libder_object keystring;
+	struct libder_object *keystring;
 
 	keystring = libder_obj_child(root, 1);
 	assert(keystring != NULL);
@@ -46,11 +46,11 @@ test_interface(libder_object root)
 
 /* buf and bufszs are just our reference */
 static void
-test_construction(libder_ctx ctx, const uint8_t *buf, size_t bufsz)
+test_construction(struct libder_ctx*ctx, const uint8_t *buf, size_t bufsz)
 {
 	uint8_t *out;
-	libder_object obj, params, root;
-	libder_object keystring;
+	struct libder_object *obj, *params, *root;
+	struct libder_object *keystring;
 	size_t outsz;
 
 	root = libder_obj_alloc_simple(ctx, BT_SEQUENCE, NULL, 0);
@@ -88,8 +88,8 @@ int
 main(int argc, char *argv[])
 {
 	struct stat sb;
-	libder_ctx ctx;
-	libder_object root;
+	struct libder_ctx *ctx;
+	struct libder_object *root;
 	uint8_t *buf, *out;
 	size_t bufsz, outsz, rootsz;
 	ssize_t readsz;

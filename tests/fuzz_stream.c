@@ -49,8 +49,8 @@ static int
 fuzz_fd(const struct fuzz_params *fparams, const uint8_t *data, size_t sz)
 {
 	struct supply_data sdata;
-	libder_ctx ctx;
-	libder_object obj;
+	struct libder_ctx *ctx;
+	struct libder_object *obj;
 	size_t totalsz;
 	int sockets[2];
 	pid_t pid;
@@ -104,8 +104,8 @@ static int
 fuzz_file(const struct fuzz_params *fparams, const uint8_t *data, size_t sz)
 {
 	FILE *fp;
-	libder_ctx ctx;
-	libder_object obj;
+	struct libder_ctx *ctx;
+	struct libder_object *obj;
 	size_t totalsz;
 	int ret;
 
@@ -154,8 +154,8 @@ fuzz_file(const struct fuzz_params *fparams, const uint8_t *data, size_t sz)
 static int
 fuzz_plain(const struct fuzz_params *fparams, const uint8_t *data, size_t sz)
 {
-	libder_ctx ctx;
-	libder_object obj;
+	struct libder_ctx *ctx;
+	struct libder_object *obj;
 	int ret;
 
 	if (sz == 0)

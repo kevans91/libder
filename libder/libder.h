@@ -95,9 +95,9 @@ enum libder_error {
 	LDE_STRICT_BITSTRING,	/* Strict: malformed constructed bitstring */
 };
 
-typedef struct libder_ctx	*libder_ctx;
-typedef struct libder_tag	*libder_tag;
-typedef struct libder_object	*libder_object;
+struct libder_ctx;
+struct libder_tag;
+struct libder_object;
 
 /*
  * By default we normalize everything, but we allow some subset of the
@@ -127,22 +127,22 @@ typedef struct libder_object	*libder_object;
     (LIBDER_NORMALIZE_TYPE_MASK | LIBDER_NORMALIZE_CONSTRUCTED |	\
     LIBDER_NORMALIZE_TAGS)
 
-libder_ctx		 libder_open(void);
-void			 libder_close(libder_ctx);
-const char		*libder_get_error(libder_ctx);
-bool			 libder_has_error(libder_ctx);
-uint64_t		 libder_get_normalize(libder_ctx);
-uint64_t		 libder_set_normalize(libder_ctx, uint64_t);
-bool			 libder_get_strict(libder_ctx);
-bool			 libder_set_strict(libder_ctx, bool);
-int			 libder_get_verbose(libder_ctx);
-int			 libder_set_verbose(libder_ctx, int);
+struct libder_ctx *		 libder_open(void);
+void			 libder_close(struct libder_ctx *);
+const char		*libder_get_error(struct libder_ctx *);
+bool			 libder_has_error(struct libder_ctx *);
+uint64_t		 libder_get_normalize(struct libder_ctx *);
+uint64_t		 libder_set_normalize(struct libder_ctx *, uint64_t);
+bool			 libder_get_strict(struct libder_ctx *);
+bool			 libder_set_strict(struct libder_ctx *, bool);
+int			 libder_get_verbose(struct libder_ctx *);
+int			 libder_set_verbose(struct libder_ctx *, int);
 
-libder_object		 libder_read(libder_ctx, const uint8_t *, size_t *);
-libder_object		 libder_read_fd(libder_ctx, int, size_t *);
-libder_object		 libder_read_file(libder_ctx, FILE *, size_t *);
+struct libder_object	*libder_read(struct libder_ctx *, const uint8_t *, size_t *);
+struct libder_object	*libder_read_fd(struct libder_ctx *, int, size_t *);
+struct libder_object	*libder_read_file(struct libder_ctx *, FILE *, size_t *);
 
-uint8_t			*libder_write(libder_ctx, libder_object, uint8_t *,
+uint8_t			*libder_write(struct libder_ctx *, struct libder_object *, uint8_t *,
 			    size_t *);
 
 #define	DER_CHILDREN(obj)	libder_obj_children(obj)
@@ -157,24 +157,24 @@ uint8_t			*libder_write(libder_ctx, libder_object, uint8_t *,
 	    (var) && ((tvar) = DER_NEXT((var)), 1);	\
 	    (var) = (tvar))
 
-libder_object	 libder_obj_alloc(libder_ctx, libder_tag, const uint8_t *, size_t);
-libder_object	 libder_obj_alloc_simple(libder_ctx, uint8_t, const uint8_t *,
+struct libder_object	*libder_obj_alloc(struct libder_ctx *, struct libder_tag *, const uint8_t *, size_t);
+struct libder_object	*libder_obj_alloc_simple(struct libder_ctx *, uint8_t, const uint8_t *,
 		    size_t);
-void		 libder_obj_free(libder_object);
+void		 libder_obj_free(struct libder_object *);
 
-bool		 libder_obj_append(libder_object, libder_object);
-libder_object	 libder_obj_child(const struct libder_object *, size_t);
-libder_object	 libder_obj_children(const struct libder_object *);
-libder_object	 libder_obj_next(const struct libder_object *);
-libder_tag	 libder_obj_type(const struct libder_object *);
+bool		 libder_obj_append(struct libder_object *, struct libder_object *);
+struct libder_object	*libder_obj_child(const struct libder_object *, size_t);
+struct libder_object	*libder_obj_children(const struct libder_object *);
+struct libder_object	*libder_obj_next(const struct libder_object *);
+struct libder_tag	*libder_obj_type(const struct libder_object *);
 uint8_t		 libder_obj_type_simple(const struct libder_object *);
 const uint8_t	*libder_obj_data(const struct libder_object *, size_t *);
 
 /* Debugging aide -- probably shouldn't use. */
 void		 libder_obj_dump(const struct libder_object *, FILE *);
 
-libder_tag	 libder_type_alloc_simple(libder_ctx, uint8_t);
-libder_tag	 libder_type_dup(struct libder_ctx *, const struct libder_tag *);
+struct libder_tag	*libder_type_alloc_simple(struct libder_ctx *, uint8_t);
+struct libder_tag	*libder_type_dup(struct libder_ctx *, const struct libder_tag *);
 void		 libder_type_free(struct libder_tag *);
 #define	libder_type_simple	libder_type_simple_abi
 uint8_t		 libder_type_simple(const struct libder_tag *);

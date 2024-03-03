@@ -22,8 +22,8 @@
 int
 LLVMFuzzerTestOneInput(const uint8_t *data, size_t sz)
 {
-	libder_ctx ctx;
-	libder_object obj;
+	struct libder_ctx *ctx;
+	struct libder_object *obj;
 	size_t readsz;
 	int ret;
 	bool strict;

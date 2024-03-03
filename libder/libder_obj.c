@@ -332,7 +332,7 @@ libder_obj_next(const struct libder_object *obj)
 	return (obj->next);
 }
 
-libder_tag
+struct libder_tag *
 libder_obj_type(const struct libder_object *obj)
 {
 
@@ -342,7 +342,7 @@ libder_obj_type(const struct libder_object *obj)
 uint8_t
 libder_obj_type_simple(const struct libder_object *obj)
 {
-	libder_tag type = obj->type;
+	struct libder_tag *type = obj->type;
 	uint8_t simple = type->tag_class << 6;
 
 	if (type->tag_constructed)
