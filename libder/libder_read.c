@@ -7,6 +7,7 @@
 #include <sys/types.h>
 
 #include <assert.h>
+#include <err.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -271,9 +272,23 @@ libder_stream_refill(struct libder_stream *stream, size_t req)
 
 			readsz = read(stream->stream_src_fd, refill_buf, needed);
 			if (readsz <= 0) {
+				/*
+				 * In the future, we should likely make this
+				 * configurable in some sense, but for now this
+				 * seems fine.  If, e.g., we caught a SIGINT,
+				 * the application could always just close the
+				 * fd on us if we should bail out.  The problem
+				 * right now is that we have no way to resume a
+				 * partial transfer.
+				 */
+				if (readsz < 0 && errno == EINTR)
+					continue;
 				stream->stream_eof = true;
-				if (readsz < 0)
+				if (readsz < 0) {
 					stream->stream_error = errno;
+					if (stream->stream_ctx->verbose > 0)
+						warn("libder_read");
+				}
 				break;
 			}
 
