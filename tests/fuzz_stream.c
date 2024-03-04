@@ -58,13 +58,20 @@ fuzz_fd(const struct fuzz_params *fparams, const uint8_t *data, size_t sz)
 
 	ret = socketpair(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0,
 	    &sockets[0]);
-	assert(ret == 0);
+	if (ret == -1)
+		return (-1);
 
 	sdata.data = data;
 	sdata.datasz = sz;
 	sdata.socket = sockets[1];
 	signal(SIGCHLD, SIG_IGN);
 	pid = fork();
+	if (pid == -1) {
+		close(sockets[0]);
+		close(sockets[1]);
+		return (-1);
+	}
+
 	if (pid == 0) {
 		close(sockets[0]);
 		supply_thread(&sdata);
@@ -77,16 +84,16 @@ fuzz_fd(const struct fuzz_params *fparams, const uint8_t *data, size_t sz)
 	ret = 0;
 	ctx = libder_open();
 	libder_set_strict(ctx, !!fparams->strict);
-	for (;;) {
+	while (totalsz < sz) {
 		size_t readsz = 0;
 
 		obj = libder_read_fd(ctx, sockets[0], &readsz);
 		libder_obj_free(obj);
 
-		if (obj == NULL)
-			assert(readsz != 0 || totalsz == sz);
-		else
-			assert(readsz != 0);
+		/*
+		 * Even invalid reads should consume at least one byte.
+		 */
+		assert(readsz != 0);
 
 		totalsz += readsz;
 		if (readsz == 0)
