@@ -705,20 +705,34 @@ libder_read_stream(struct libder_ctx *ctx, struct libder_stream *stream)
 struct libder_object *
 libder_read(struct libder_ctx *ctx, const uint8_t *data, size_t *datasz)
 {
-	struct libder_stream stream = {
+	struct libder_stream *stream;
+	struct libder_object *root;
+
+	stream = malloc(sizeof(*stream));
+	if (stream == NULL) {
+		libder_set_error(ctx, LDE_NOMEM);
+		return (NULL);
+	}
+
+	*stream = (struct libder_stream){
 		.stream_type = LDST_NONE,
 		.stream_bufsz = *datasz,
 		.stream_resid = *datasz,
 		.stream_src_buf = data,
 	};
-	struct libder_object *root;
 
 	ctx->error = LDE_NONE;
-	if (!libder_stream_init(ctx, &stream))
+	if (!libder_stream_init(ctx, stream)) {
+		free(stream);
 		return (NULL);
-	root = libder_read_stream(ctx, &stream);
-	if (stream.stream_consumed != 0)
-		*datasz = stream.stream_consumed;
+	}
+
+	root = libder_read_stream(ctx, stream);
+	if (stream->stream_consumed != 0)
+		*datasz = stream->stream_consumed;
+
+	libder_stream_free(stream);
+	free(stream);
 
 	return (root);
 }
@@ -731,22 +745,33 @@ libder_read(struct libder_ctx *ctx, const uint8_t *data, size_t *datasz)
 struct libder_object *
 libder_read_fd(struct libder_ctx *ctx, int fd, size_t *consumed)
 {
-	struct libder_stream stream = {
+	struct libder_stream *stream;
+	struct libder_object *root;
+
+	stream = malloc(sizeof(*stream));
+	if (stream == NULL) {
+		libder_set_error(ctx, LDE_NOMEM);
+		return (NULL);
+	}
+
+	*stream = (struct libder_stream){
 		.stream_type = LDST_FD,
 		.stream_src_fd = fd,
 	};
-	struct libder_object *root;
 
 	root = NULL;
 	ctx->error = LDE_NONE;
-	if (!libder_stream_init(ctx, &stream))
+	if (!libder_stream_init(ctx, stream)) {
+		free(stream);
 		return (NULL);
+	}
 
-	root = libder_read_stream(ctx, &stream);
-	if (consumed != NULL && stream.stream_consumed != 0)
-		*consumed = stream.stream_consumed;
+	root = libder_read_stream(ctx, stream);
+	if (consumed != NULL && stream->stream_consumed != 0)
+		*consumed = stream->stream_consumed;
 
-	libder_stream_free(&stream);
+	libder_stream_free(stream);
+	free(stream);
 	return (root);
 }
 
@@ -756,21 +781,33 @@ libder_read_fd(struct libder_ctx *ctx, int fd, size_t *consumed)
 struct libder_object *
 libder_read_file(struct libder_ctx *ctx, FILE *fp, size_t *consumed)
 {
-	struct libder_stream stream = {
+	struct libder_stream *stream;
+	struct libder_object *root;
+
+	stream = malloc(sizeof(*stream));
+	if (stream == NULL) {
+		libder_set_error(ctx, LDE_NOMEM);
+		return (NULL);
+	}
+
+	*stream = (struct libder_stream){
 		.stream_type = LDST_FILE,
 		.stream_src_file = fp,
 	};
-	struct libder_object *root;
 
 	root = NULL;
 	ctx->error = LDE_NONE;
-	if (!libder_stream_init(ctx, &stream))
+	if (!libder_stream_init(ctx, stream)) {
+		free(stream);
 		return (NULL);
+	}
 
-	root = libder_read_stream(ctx, &stream);
-	if (consumed != NULL && stream.stream_consumed != 0)
-		*consumed = stream.stream_consumed;
+	root = libder_read_stream(ctx, stream);
+	if (consumed != NULL && stream->stream_consumed != 0)
+		*consumed = stream->stream_consumed;
 
-	libder_stream_free(&stream);
+	libder_stream_free(stream);
+	free(stream);
+
 	return (root);
 }
