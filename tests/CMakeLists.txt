@@ -1,4 +1,4 @@
-set(FUZZERS fuzz_stream fuzz_write)
+set(FUZZERS fuzz_parallel fuzz_stream fuzz_write)
 set(UTILS make_corpus)
 set(TESTS test_privkey test_pubkey)
 
@@ -8,6 +8,8 @@ foreach(fuzzer IN LISTS FUZZERS)
 	target_compile_options(${fuzzer} PUBLIC -fsanitize=fuzzer)
 	target_link_options(${fuzzer} PUBLIC -fsanitize=fuzzer)
 endforeach()
+
+target_link_options(fuzz_parallel PUBLIC -pthread)
 
 foreach(prog IN LISTS UTILS TESTS)
 	add_executable(${prog} ${prog}.c)
