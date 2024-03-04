@@ -1,0 +1,26 @@
+set(FUZZERS fuzz_stream fuzz_write)
+set(UTILS make_corpus)
+set(TESTS test_privkey test_pubkey)
+
+foreach(fuzzer IN LISTS FUZZERS)
+	add_executable(${fuzzer} ${fuzzer}.c)
+
+	target_compile_options(${fuzzer} PUBLIC -fsanitize=fuzzer)
+	target_link_options(${fuzzer} PUBLIC -fsanitize=fuzzer)
+endforeach()
+
+foreach(prog IN LISTS UTILS TESTS)
+	add_executable(${prog} ${prog}.c)
+endforeach()
+
+foreach(prog IN LISTS FUZZERS UTILS TESTS)
+	target_include_directories(${prog} PRIVATE ${CMAKE_SOURCE_DIR}/libder)
+	target_link_libraries(${prog} der_static)
+endforeach()
+
+add_custom_command(TARGET test_privkey POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy
+	${CMAKE_CURRENT_SOURCE_DIR}/repo.priv ${CMAKE_CURRENT_BINARY_DIR}/repo.priv)
+add_custom_command(TARGET test_pubkey POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy
+	${CMAKE_CURRENT_SOURCE_DIR}/repo.pub ${CMAKE_CURRENT_BINARY_DIR}/repo.pub)

@@ -7,3 +7,5 @@
 *.pico
 *.debug
 *.full
+
+build/

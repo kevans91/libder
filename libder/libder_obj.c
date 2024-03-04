@@ -378,7 +378,7 @@ libder_type_name(const struct libder_tag *type)
 	if (type->tag_class != BC_UNIVERSAL)
 		goto fallback;
 
-#define	UTYPE(val)	case val: return (#val + 3)
+#define	UTYPE(val)	case val: return (&(#val)[3])
 	switch (type->tag_short) {
 	UTYPE(BT_RESERVED);
 	UTYPE(BT_BOOLEAN);
