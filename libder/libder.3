@@ -10,6 +10,7 @@
 .Nm libder ,
 .Nm libder_open ,
 .Nm libder_close ,
+.Nm libder_abort ,
 .Nm libder_get_error ,
 .Nm libder_has_error ,
 .Nm libder_get_normalize ,
@@ -26,6 +27,8 @@
 .Fn libder_open "void"
 .Ft void
 .Fn libder_close "struct libder_ctx *ctx"
+.Ft void
+.Fn libder_abort "struct libder_ctx *ctx"
 .Ft const char *
 .Fn libder_get_error "struct libder_ctx *ctx"
 .Ft bool
@@ -92,10 +95,23 @@ The
 function will free the context.
 .Pp
 The
-.Nm libder_get_error
+.Fn libder_abort
+function will abort an in-progress
+.Xr libder_read_fd 3
+operation on the existing
+.Fa ctx
+if it is interrupted by a signal in the middle of a
+.Xr read 2
+syscall.
+See
+.Xr libder_read_fd 3
+for further discussion.
+.Pp
+The
+.Fn libder_get_error
 function will return an error string appropriate for the current error, if any.
 The
-.Nm libder_has_error
+.Fn libder_has_error
 function can be used to check if an error was raised in a previous operation.
 .Pp
 The

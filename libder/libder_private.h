@@ -32,6 +32,7 @@ struct libder_ctx {
 	enum libder_error	 error;
 	int			 verbose;
 	bool			 strict;
+	volatile sig_atomic_t	 abort;
 };
 
 struct libder_tag {
@@ -55,6 +56,20 @@ struct libder_object {
 	struct libder_object	*parent;
 	struct libder_object	*next;
 };
+
+static inline sig_atomic_t
+libder_check_abort(struct libder_ctx *ctx)
+{
+
+	return (ctx->abort);
+}
+
+static inline void
+libder_clear_abort(struct libder_ctx *ctx)
+{
+
+	ctx->abort = 1;
+}
 
 #define	LIBDER_PRIVATE	__attribute__((__visibility__("hidden")))
 

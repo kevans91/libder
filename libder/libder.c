@@ -27,8 +27,16 @@ libder_open(void)
 	ctx->verbose = 0;
 	ctx->normalize = LIBDER_NORMALIZE_ALL;
 	ctx->strict = true;
+	ctx->abort = 0;
 
 	return (ctx);
+}
+
+void
+libder_abort(struct libder_ctx *ctx)
+{
+
+	ctx->abort = 1;
 }
 
 LIBDER_PRIVATE size_t

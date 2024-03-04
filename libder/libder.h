@@ -129,6 +129,7 @@ struct libder_object;
 
 struct libder_ctx *		 libder_open(void);
 void			 libder_close(struct libder_ctx *);
+void			 libder_abort(struct libder_ctx *);
 const char		*libder_get_error(struct libder_ctx *);
 bool			 libder_has_error(struct libder_ctx *);
 uint64_t		 libder_get_normalize(struct libder_ctx *);

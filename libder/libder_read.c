@@ -281,10 +281,12 @@ libder_stream_refill(struct libder_stream *stream, size_t req)
 				 * right now is that we have no way to resume a
 				 * partial transfer.
 				 */
-				if (readsz < 0 && errno == EINTR)
+				if (readsz < 0 && errno == EINTR &&
+				    !libder_check_abort(stream->stream_ctx))
 					continue;
 				stream->stream_eof = true;
 				if (readsz < 0) {
+					stream->stream_ctx->abort = false;
 					stream->stream_error = errno;
 					if (stream->stream_ctx->verbose > 0)
 						warn("libder_read");
@@ -721,6 +723,7 @@ libder_read(struct libder_ctx *ctx, const uint8_t *data, size_t *datasz)
 		.stream_src_buf = data,
 	};
 
+	libder_clear_abort(ctx);
 	ctx->error = LDE_NONE;
 	if (!libder_stream_init(ctx, stream)) {
 		free(stream);
@@ -760,6 +763,7 @@ libder_read_fd(struct libder_ctx *ctx, int fd, size_t *consumed)
 	};
 
 	root = NULL;
+	libder_clear_abort(ctx);
 	ctx->error = LDE_NONE;
 	if (!libder_stream_init(ctx, stream)) {
 		free(stream);
@@ -796,6 +800,7 @@ libder_read_file(struct libder_ctx *ctx, FILE *fp, size_t *consumed)
 	};
 
 	root = NULL;
+	libder_clear_abort(ctx);
 	ctx->error = LDE_NONE;
 	if (!libder_stream_init(ctx, stream)) {
 		free(stream);
