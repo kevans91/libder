@@ -26,3 +26,9 @@ add_custom_command(TARGET test_privkey POST_BUILD
 add_custom_command(TARGET test_pubkey POST_BUILD
 	COMMAND ${CMAKE_COMMAND} -E copy
 	${CMAKE_CURRENT_SOURCE_DIR}/repo.pub ${CMAKE_CURRENT_BINARY_DIR}/repo.pub)
+
+add_custom_target(check
+	DEPENDS test_pubkey test_privkey
+	COMMAND "${CMAKE_CURRENT_BINARY_DIR}/test_pubkey"
+	COMMAND "${CMAKE_CURRENT_BINARY_DIR}/test_privkey"
+)

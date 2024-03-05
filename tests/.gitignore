@@ -7,5 +7,6 @@ oom-*
 fuzz_*
 test_*
 !*.c
+!*.h
 
 make_corpus

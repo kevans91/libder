@@ -16,6 +16,8 @@
 
 #include <libder.h>
 
+#include "test_common.h"
+
 static const uint8_t oid_ecpubkey[] =
     { 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01 };
 static const uint8_t oid_secp256k1[] =
@@ -93,10 +95,15 @@ main(int argc, char *argv[])
 	uint8_t *buf, *out;
 	size_t bufsz, outsz, rootsz;
 	ssize_t readsz;
-	int error, fd;
+	int dfd, error, fd;
 
-	fd = open("repo.pub", O_RDONLY);
+	dfd = open_progdir(argv[0]);
+
+	fd = openat(dfd, "repo.pub", O_RDONLY);
 	assert(fd >= 0);
+
+	close(dfd);
+	dfd = -1;
 
 	error = fstat(fd, &sb);
 	assert(error == 0);

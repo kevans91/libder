@@ -16,6 +16,8 @@
 
 #include <libder.h>
 
+#include "test_common.h"
+
 /*
  * Note that the choice of secp112r1 is completely arbitrary.  I was mainly
  * shooting for something pretty weak to avoid people trying to "catch me"
@@ -125,10 +127,15 @@ main(int argc, char *argv[])
 	uint8_t *buf, *out;
 	size_t bufsz, outsz, rootsz;
 	ssize_t readsz;
-	int error, fd;
+	int dfd, error, fd;
 
-	fd = open("repo.priv", O_RDONLY);
+	dfd = open_progdir(argv[0]);
+
+	fd = openat(dfd, "repo.priv", O_RDONLY);
 	assert(fd >= 0);
+
+	close(dfd);
+	dfd = -1;
 
 	error = fstat(fd, &sb);
 	assert(error == 0);
