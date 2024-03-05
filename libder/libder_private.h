@@ -9,10 +9,20 @@
 #include <sys/param.h>
 
 #include <assert.h>
+#include <signal.h>
 #include <stdbool.h>
 
 #include "libder.h"
 
+/* FreeBSD's sys/cdefs.h */
+#ifndef __DECONST
+#define	__DECONST(type, var)	((type)(uintptr_t)(const void *)(var))
+#endif
+#ifndef __unused
+#define	__unused		__attribute__((__unused__))
+#endif
+
+/* FreeBSD's sys/params.h */
 #ifndef nitems
 #define	nitems(x)	(sizeof((x)) / sizeof((x)[0]))
 #endif
