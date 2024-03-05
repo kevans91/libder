@@ -1,21 +1,28 @@
 set(FUZZERS fuzz_parallel fuzz_stream fuzz_write)
-set(UTILS make_corpus)
+set(UTILS )
 set(TESTS test_privkey test_pubkey)
 
-foreach(fuzzer IN LISTS FUZZERS)
-	add_executable(${fuzzer} ${fuzzer}.c)
+set(ALL_TESTS ${UTILS} ${TESTS})
 
-	target_compile_options(${fuzzer} PUBLIC -fsanitize=fuzzer)
-	target_link_options(${fuzzer} PUBLIC -fsanitize=fuzzer)
-endforeach()
+if(BUILD_FUZZERS)
+	set(UTILS ${UTILS} make_corpus)
+	set(ALL_TESTS ${ALL_TESTS} ${FUZZERS} make_corpus)
 
-target_link_options(fuzz_parallel PUBLIC -pthread)
+	foreach(fuzzer IN LISTS FUZZERS)
+		add_executable(${fuzzer} ${fuzzer}.c)
+
+		target_compile_options(${fuzzer} PUBLIC -fsanitize=fuzzer)
+		target_link_options(${fuzzer} PUBLIC -fsanitize=fuzzer)
+	endforeach()
+
+	target_link_options(fuzz_parallel PUBLIC -pthread)
+endif()
 
 foreach(prog IN LISTS UTILS TESTS)
 	add_executable(${prog} ${prog}.c)
 endforeach()
 
-foreach(prog IN LISTS FUZZERS UTILS TESTS)
+foreach(prog IN LISTS ALL_TESTS)
 	target_include_directories(${prog} PRIVATE ${CMAKE_SOURCE_DIR}/libder)
 	target_link_libraries(${prog} der_static)
 endforeach()
