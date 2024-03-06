@@ -856,6 +856,8 @@ libder_obj_normalize_boolean(struct libder_object *obj)
 	size_t length = obj->length;
 	int sense = 0;
 
+	assert(length > 0);
+
 	/*
 	 * Booleans must be collapsed down to a single byte, 0x00 or 0xff,
 	 * indicating false or true respectively.
@@ -863,8 +865,10 @@ libder_obj_normalize_boolean(struct libder_object *obj)
 	if (length == 1 && (payload[0] == 0x00 || payload[0] == 0xff))
 		return (true);
 
-	for (size_t bpos = 0; bpos < length - 1; bpos++) {
+	for (size_t bpos = 0; bpos < length; bpos++) {
 		sense |= payload[bpos];
+		if (sense != 0)
+			break;
 	}
 
 	payload[0] = sense != 0 ? 0xff : 0x00;
