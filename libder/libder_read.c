@@ -83,7 +83,10 @@ payload_free(struct libder_payload *payload)
 	if (!payload->payload_heap)
 		return;
 
-	free(payload->payload_data);
+	if (payload->payload_data != NULL) {
+		libder_bzero(payload->payload_data, payload->payload_size);
+		free(payload->payload_data);
+	}
 
 	payload->payload_heap = false;
 	payload->payload_data = NULL;
@@ -126,7 +129,10 @@ libder_stream_init(struct libder_ctx *ctx, struct libder_stream *stream)
 static void
 libder_stream_free(struct libder_stream *stream)
 {
-	free(stream->stream_buf);
+	if (stream->stream_buf != NULL) {
+		libder_bzero(stream->stream_buf, stream->stream_bufsz);
+		free(stream->stream_buf);
+	}
 }
 
 static void
@@ -497,6 +503,7 @@ der_read_structure(struct libder_ctx *ctx, struct libder_stream *stream,
 
 				req = MIN(stream->stream_bufsz, resid);
 				if ((buf = libder_stream_refill(stream, req)) == NULL) {
+					explicit_bzero(payload_data, offset);
 					free(payload_data);
 
 					libder_set_error(ctx, LDE_SHORTDATA);
@@ -505,6 +512,7 @@ der_read_structure(struct libder_ctx *ctx, struct libder_stream *stream,
 
 				next_data = realloc(payload_data, offset + req);
 				if (next_data == NULL) {
+					explicit_bzero(payload_data, offset);
 					free(payload_data);
 
 					libder_set_error(ctx, LDE_NOMEM);
