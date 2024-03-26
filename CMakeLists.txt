@@ -2,9 +2,13 @@ cmake_minimum_required(VERSION 3.18)
 
 project(libder)
 
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
-	add_compile_options(-fsanitize=address,undefined -fstrict-aliasing)
-	add_link_options(-fsanitize=address,undefined -fstrict-aliasing)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+	if(NOT CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
+		add_compile_options(-fsanitize=address,undefined -fstrict-aliasing)
+		add_link_options(-fsanitize=address,undefined -fstrict-aliasing)
+	endif()
+
+	add_compile_options(-Werror)
 endif()
 
 # AppleClang is excluded for the time being; the version used in GitHub Action
