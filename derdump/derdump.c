@@ -6,6 +6,7 @@
 
 #include <err.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <libder.h>
 
@@ -26,10 +27,14 @@ main(int argc, char *argv[])
 	ctx = libder_open();
 	libder_set_verbose(ctx, 2);
 	for (int i = 1; i < argc; i++) {
-		fp = fopen(argv[i], "rb");
-		if (fp == NULL) {
-			warn("%s", argv[i]);
-			continue;
+		if (strcmp(argv[i], "-") == 0) {
+			fp = stdin;
+		} else {
+			fp = fopen(argv[i], "rb");
+			if (fp == NULL) {
+				warn("%s", argv[i]);
+				continue;
+			}
 		}
 
 		if (!first)
