@@ -4,8 +4,8 @@ project(libder)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	if(NOT CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
-		add_compile_options(-fsanitize=address,undefined -fstrict-aliasing)
-		add_link_options(-fsanitize=address,undefined -fstrict-aliasing)
+		#add_compile_options(-fsanitize=address,undefined -fstrict-aliasing)
+		#add_link_options(-fsanitize=address,undefined -fstrict-aliasing)
 	endif()
 
 	add_compile_options(-Werror)
@@ -24,5 +24,6 @@ else()
 endif()
 
 add_subdirectory(libder)
+add_subdirectory(derbuild)
 add_subdirectory(derdump)
 add_subdirectory(tests)

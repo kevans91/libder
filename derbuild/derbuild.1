@@ -1,0 +1,81 @@
+.\"
+.\" SPDX-Copyright-Identifier: BSD-2-Clause
+.\"
+.\" Copyright (C) 2025 Kyle Evans <kevans@FreeBSD.org>
+.\"
+.Dd August 30, 2025
+.Dt DERBUILD 1
+.Os
+.Sh NAME
+.Nm derbuild
+.Nd build DER-encoded object
+.Sh SYNOPSIS
+.Nm
+.Ar type:value ...
+.Sh DESCRIPTION
+The
+.Nm
+utility creates a DER encoded object using
+.Xr libder 3
+from the
+.Ar type:value
+specification passed on the command line.
+The resulting binary blob will be written to
+.Em stdout .
+.Pp
+The format of the command line is relatively straightforward.
+Each argument corresponds to one DER-encoded object in a series of objects with
+the specified numeric
+.Ar type ,
+interpreted as decimal, and a payload consisting of
+.Ar value .
+The
+.Ar value
+may be empty, but the
+.Dq ":"
+delimiter is still required.
+.Pp
+.Nm
+supports a very limited set of escape sequences in
+.Ar value :
+.Bl -tag -width indent
+.It Dq "\\\\xXX"
+Insert the value encoded by hexadecimal value
+.Li XX .
+.El
+.Pp
+Other than these defined sequences, a
+.Dq "\\\\"
+will simply be discarded and escape the next character in the specification.
+.Pp
+If an
+.Dq {
+argument is encountered, then the next objects specified are added as children
+of the last specified object.
+A
+.Dq }
+is required to close the child list in all cases.
+There is currently no limit to the depth that my be specified.
+.Pp
+.Nm
+automatically create a root object of type
+.Dv BT_SEQUENCE .
+.Sh EXAMPLES
+.Bd -literal
+$ derbuild 19:obj1 19:obj2 48: { 19:obj3 19:obj4 48: { 19:obj5 } 48: { 19:obj6 } } 19:obj7 | derdump -
+[-]
+OBJECT[type=SEQUENCE]
+        OBJECT[type=STRING, size=4]: 6f 62 6a 31
+        OBJECT[type=STRING, size=4]: 6f 62 6a 32
+        OBJECT[type=SEQUENCE]
+                OBJECT[type=STRING, size=4]: 6f 62 6a 33
+                OBJECT[type=STRING, size=4]: 6f 62 6a 34
+                OBJECT[type=SEQUENCE]
+                        OBJECT[type=STRING, size=4]: 6f 62 6a 35
+                OBJECT[type=SEQUENCE]
+                        OBJECT[type=STRING, size=4]: 6f 62 6a 36
+        OBJECT[type=STRING, size=4]: 6f 62 6a 37
+.Ed
+.Sh SEE ALSO
+.Xr derdump 1 ,
+.Xr libder 3
