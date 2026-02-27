@@ -958,7 +958,7 @@ libder_obj_tag_compare(const struct libder_tag *lhs, const struct libder_tag *rh
 	/* Next bit: constructed vs. primitive */
 	if (!lhs->tag_constructed && rhs->tag_constructed)
 		return (-1);
-	if (lhs->tag_constructed && rhs->tag_constructed)
+	if (lhs->tag_constructed && !rhs->tag_constructed)
 		return (1);
 
 	/*
@@ -1007,7 +1007,7 @@ libder_obj_tag_compare(const struct libder_tag *lhs, const struct libder_tag *rh
 		if (lbyte < rbyte)
 			return (-1);
 		else if (lbyte > rbyte)
-			return (-1);
+			return (1);
 	}
 
 	return (0);
