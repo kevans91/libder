@@ -276,7 +276,7 @@ libder_obj_unlink(struct libder_object *obj)
 			else
 				prev->next = child->next;
 			parent->nchildren--;
-			child->parent = NULL;
+			child->parent = child->next = NULL;
 			return;
 		}
 
@@ -296,9 +296,13 @@ libder_obj_append(struct libder_object *parent, struct libder_object *child)
 
 	/* XXX Type check */
 
-	if (child->parent != NULL)
+	if (child->parent != NULL) {
 		libder_obj_unlink(child);
 
+		assert(child->next == NULL);
+	}
+
+	child->parent = parent;
 	if (parent->nchildren == 0) {
 		parent->children = child;
 		parent->nchildren++;
@@ -313,7 +317,6 @@ libder_obj_append(struct libder_object *parent, struct libder_object *child)
 	assert(end != NULL);
 	end->next = child;
 	parent->nchildren++;
-	child->parent = parent;
 	return (true);
 }
 
