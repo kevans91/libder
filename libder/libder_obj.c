@@ -720,6 +720,8 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 
 	last_child = NULL;
 	DER_FOREACH_CHILD(child, obj) {
+		size_t disk_size;
+
 		/* Sanity check and coalesce our children. */
 		if (child->type->tag_class != BC_UNIVERSAL ||
 		    child->type->tag_short != obj->type->tag_short) {
@@ -736,18 +738,18 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 		 * disk size sans header in its disk_size to reuse in the later
 		 * loop.
 		 */
-		child->disk_size = libder_obj_disk_size(child, false);
+		disk_size = child->disk_size = libder_obj_disk_size(child, false);
 
 		/*
 		 * We strip the lead byte off of every element, and add it back
 		 * in pre-allocation.
 		 */
-		if (type == BT_BITSTRING && child->disk_size > 1)
-			child->disk_size--;
-		if (child->disk_size > 0)
+		if (type == BT_BITSTRING && disk_size > 1)
+			disk_size--;
+		if (disk_size > 0)
 			last_child = child;
 
-		new_size += child->disk_size;
+		new_size += disk_size;
 
 		if (child->payload != NULL)
 			need_payload = true;
@@ -784,7 +786,6 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 
 		if (child->disk_size != 0 && need_payload) {
 			assert(coalesced_data != NULL);
-			assert(offset + child->disk_size <= new_size);
 
 			/*
 			 * Bit strings are special, in that the first byte
@@ -792,6 +793,7 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 			 * need to trim that off when concatenating bit strings
 			 */
 			if (type == BT_BITSTRING) {
+				assert(offset + child->disk_size - 1 <= new_size);
 				if (ctx->strict && child != last_child &&
 				    child->disk_size > 1 && child->payload != NULL) {
 					/*
@@ -808,6 +810,8 @@ libder_obj_coalesce_children(struct libder_object *obj, struct libder_ctx *ctx)
 				offset += libder_merge_bitstrings(coalesced_data,
 				    offset, new_size, child);
 			} else {
+				assert(offset + child->disk_size <= new_size);
+
 				/*
 				 * Write zeroes out if we don't have a payload.
 				 */
