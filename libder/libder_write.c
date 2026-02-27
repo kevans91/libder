@@ -177,6 +177,7 @@ libder_write(struct libder_ctx *ctx, struct libder_object *root, uint8_t *buf,
 {
 	struct memory_write_data mwrite = { 0 };
 	size_t needed;
+	bool bufalloc = false;
 
 	/*
 	 * We shouldn't really see buf == NULL with *bufsz != 0 or vice-versa.
@@ -204,6 +205,7 @@ libder_write(struct libder_ctx *ctx, struct libder_object *root, uint8_t *buf,
 		buf = malloc(needed);
 		if (buf == NULL)
 			return (NULL);
+		bufalloc = true;
 	} else if (needed > *bufsz) {
 		*bufsz = needed;
 		return (NULL);	/* Insufficient space */
@@ -214,7 +216,8 @@ libder_write(struct libder_ctx *ctx, struct libder_object *root, uint8_t *buf,
 	mwrite.bufsz = *bufsz;
 	if (!libder_write_object(ctx, root, &memory_write, &mwrite)) {
 		libder_bzero(mwrite.buf, mwrite.offset);
-		free(buf);
+		if (bufalloc)
+			free(buf);
 		return (NULL);	/* XXX Error */
 	}
 
