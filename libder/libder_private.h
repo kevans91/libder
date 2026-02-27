@@ -117,7 +117,7 @@ libder_type_is(const struct libder_tag *type, uint8_t utype)
 
 	if (type->tag_class != BC_UNIVERSAL || type->tag_encoded)
 		return (false);
-	if ((utype & BER_TYPE_CONSTRUCTED_MASK) != type->tag_constructed)
+	if (!!(utype & BER_TYPE_CONSTRUCTED_MASK) != type->tag_constructed)
 		return (false);
 
 	utype &= ~BER_TYPE_CONSTRUCTED_MASK;
