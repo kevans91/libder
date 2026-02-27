@@ -893,6 +893,10 @@ libder_obj_normalize_boolean(struct libder_object *obj)
 
 	payload[0] = sense != 0 ? 0xff : 0x00;
 	obj->length = 1;
+
+	if (length > 1)
+		libder_bzero(&obj->payload[1], length - 1);
+
 	return (true);
 }
 
@@ -931,6 +935,8 @@ libder_obj_normalize_integer(struct libder_object *obj)
 
 		memmove(&obj->payload[0], payload, length);
 		obj->length = length;
+
+		libder_bzero(&obj->payload[length], strip);
 	}
 
 	return (true);
