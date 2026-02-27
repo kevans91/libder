@@ -83,7 +83,7 @@ static inline void
 libder_clear_abort(struct libder_ctx *ctx)
 {
 
-	ctx->abort = 1;
+	ctx->abort = 0;
 }
 
 #define	LIBDER_PRIVATE	__attribute__((__visibility__("hidden")))
