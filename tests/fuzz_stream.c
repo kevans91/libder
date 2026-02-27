@@ -34,7 +34,7 @@ supply_thread(void *data)
 	do {
 		writesz = write(sdata->socket, sdata->data, sz);
 
-		data += writesz;
+		sdata->data += writesz;
 		sz -= writesz;
 	} while (sz != 0 && writesz > 0);
 
