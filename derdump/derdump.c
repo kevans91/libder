@@ -48,7 +48,8 @@ main(int argc, char *argv[])
 		}
 
 		first = false;
-		fclose(fp);
+		if (fp != stdin)
+			fclose(fp);
 	}
 
 	libder_close(ctx);
