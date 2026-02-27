@@ -97,6 +97,7 @@ main(int argc, char *argv[])
 	ssize_t readsz;
 	int dfd, error, fd;
 
+	(void)argc;
 	dfd = open_progdir(argv[0]);
 
 	fd = openat(dfd, "repo.pub", O_RDONLY);
@@ -115,7 +116,7 @@ main(int argc, char *argv[])
 	readsz = read(fd, buf, bufsz);
 	close(fd);
 
-	assert(readsz == bufsz);
+	assert((size_t)readsz == bufsz);
 
 	ctx = libder_open();
 	rootsz = bufsz;

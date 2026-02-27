@@ -82,7 +82,7 @@ write_one(const struct fuzz_params *params, const struct seed *seed, int dirfd,
 	else
 		assert(write(fd, &params->strict, sizeof(params->strict)) == sizeof(params->strict));
 
-	assert(write(fd, seed->seed_seq, seed->seed_seqsz) == seed->seed_seqsz);
+	assert((size_t)write(fd, seed->seed_seq, seed->seed_seqsz) == seed->seed_seqsz);
 
 	free(name);
 	close(fd);

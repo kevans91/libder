@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.18)
 
 project(libder)
 
+add_compile_options(-Wall -Wextra)
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	if(NOT CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
 		#add_compile_options(-fsanitize=address,undefined -fstrict-aliasing)

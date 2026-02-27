@@ -68,7 +68,6 @@ test_construction(struct libder_ctx *ctx, const uint8_t *buf, size_t bufsz)
 {
 	uint8_t *out;
 	struct libder_object *obj, *oidp, *pubp, *root;
-	struct libder_object *keystring;
 	size_t outsz;
 	uint8_t data;
 
@@ -129,6 +128,7 @@ main(int argc, char *argv[])
 	ssize_t readsz;
 	int dfd, error, fd;
 
+	(void)argc;
 	dfd = open_progdir(argv[0]);
 
 	fd = openat(dfd, "repo.priv", O_RDONLY);
@@ -147,7 +147,7 @@ main(int argc, char *argv[])
 	readsz = read(fd, buf, bufsz);
 	close(fd);
 
-	assert(readsz == bufsz);
+	assert((size_t)readsz == bufsz);
 
 	ctx = libder_open();
 	rootsz = bufsz;
