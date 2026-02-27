@@ -118,7 +118,11 @@ parse_tvpair(struct libder_ctx *ctx, const char *tval)
 	payload = parse_payload(val, &payloadsz);
 	assert(payload != NULL || payloadsz == 0);
 
-	return (libder_obj_alloc_simple(ctx, type, payload, payloadsz));
+	obj = libder_obj_alloc_simple(ctx, type, payload, payloadsz);
+	if (obj == NULL)
+		free(payload);
+
+	return (obj);
 }
 
 static int
@@ -173,13 +177,11 @@ derbuild_object(struct libder_ctx *ctx, struct libder_object *container,
 int
 main(int argc, char *argv[])
 {
-	FILE *fp;
 	struct libder_ctx *ctx;
 	struct libder_object *root;
 	uint8_t *obuf = NULL;
-	size_t obufsz, rootsz, writesz;
+	size_t obufsz, writesz;
 	int consumed;
-	bool first = true;
 
 	if (argc < 2) {
 		fprintf(stderr, "usage: %s type:data ...\n", argv[0]);
