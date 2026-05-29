@@ -30,6 +30,7 @@ arc_encoded_len(uint64_t oval)
 static bool
 arc_encode(FILE *fp, uint64_t oval)
 {
+	off_t fpos;
 	size_t writesz;
 	uint8_t arcb;
 
@@ -45,7 +46,8 @@ arc_encode(FILE *fp, uint64_t oval)
 	 * the representation and extend our stream in advance, then
 	 * work backwards.
 	 */
-	fseek(fp, arc_encoded_len(oval) - 1, SEEK_END);
+	fseek(fp, arc_encoded_len(oval) - 1, SEEK_CUR);
+	fpos = ftello(fp);
 	oid_write(oval & 0x7f);
 	oval >>= 7;
 
@@ -55,7 +57,7 @@ arc_encode(FILE *fp, uint64_t oval)
 		oval >>= 7;
 	}
 
-	fseek(fp, 0, SEEK_END);
+	fseeko(fp, fpos + 1, SEEK_SET);
 #undef oid_write
 	return (true);
 }
@@ -85,7 +87,7 @@ libder_oid_parse(const char *oidstr, size_t *outsz)
 	unsigned long long root, sec;
 	FILE *oidf;
 	char *buf;
-	size_t bufsz;
+	size_t oidsz;
 	int order = 0, serrno;
 
 	/* X.690 Encoding */
@@ -98,7 +100,7 @@ libder_oid_parse(const char *oidstr, size_t *outsz)
 		return (NULL);
 	}
 
-	oidf = open_memstream(&buf, &bufsz);
+	oidf = open_memstream(&buf, &oidsz);
 	if (oidf == NULL)
 		return (NULL);
 
@@ -148,7 +150,7 @@ libder_oid_parse(const char *oidstr, size_t *outsz)
 		goto failed;
 
 	fclose(oidf);
-	*outsz = bufsz;
+	*outsz = oidsz;
 	return ((uint8_t *)buf);
 
 failed:
