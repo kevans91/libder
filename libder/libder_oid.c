@@ -55,7 +55,7 @@ arc_encode(FILE *fp, uint64_t oval)
 		oval >>= 7;
 	}
 
-	fseek(fp, 1, SEEK_END);
+	fseek(fp, 0, SEEK_END);
 #undef oid_write
 	return (true);
 }
